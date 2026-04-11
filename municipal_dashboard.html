@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Municipal Dashboard – Namasuba–Lufuka</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<style>
+:root {
+  --bg: #f0f2f0;
+  --surface: #ffffff;
+  --surface2: #f7f9f7;
+  --border: #dde5dd;
+  --border2: #c8d5c8;
+  --text: #1a2e1a;
+  --text2: #4a6b4a;
+  --muted: #7a9a7a;
+  --accent: #1a6b3a;
+  --accent-light: #e8f5ee;
+  --accent-mid: #2d9b56;
+  --warn: #c0392b;
+  --warn-light: #fdf2f1;
+  --orange: #d4691e;
+  --orange-light: #fdf4ee;
+  --blue: #1a5276;
+  --blue-light: #eaf2fb;
+  --font: 'Space Grotesk', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 12px;
+  --shadow: 0 2px 12px rgba(26,46,26,.08);
+  --shadow-md: 0 4px 24px rgba(26,46,26,.12);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; }
+
+/* ── LOGIN SCREEN ── */
+.login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(135deg, #0d2b1a 0%, #1a4a2e 50%, #0a1f12 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.login-screen.hidden { display: none; }
+.login-box {
+  background: var(--surface); border-radius: 20px;
+  padding: 40px 36px; max-width: 400px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  animation: fadeUp .4s ease;
+}
+@keyframes fadeUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
+.login-logo {
+  width: 56px; height: 56px; border-radius: 14px;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-size: 26px; margin-bottom: 20px;
+}
+.login-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
+.login-label { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; display: block; font-family: var(--mono); letter-spacing: .5px; }
+.login-input {
+  width: 100%; padding: 12px 14px; background: var(--surface2);
+  border: 2px solid var(--border); border-radius: 10px;
+  font-family: var(--font); font-size: 15px; outline: none;
+  transition: border-color .2s; margin-bottom: 16px; letter-spacing: 3px;
+  color: var(--text);
+}
+.login-input:focus { border-color: var(--accent); background: #fff; }
+.login-input.shake { animation: shake .4s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+.login-btn {
+  width: 100%; padding: 14px; background: var(--accent); border: none;
+  border-radius: 10px; color: #fff; font-family: var(--font);
+  font-size: 15px; font-weight: 700; cursor: pointer; transition: all .2s;
+  margin-bottom: 16px;
+}
+.login-btn:hover { background: #155c2e; }
+.login-error {
+  padding: 10px 14px; background: var(--warn-light);
+  border: 1.5px solid #f5b7b1; border-radius: 8px;
+  color: var(--warn); font-size: 12.5px; font-weight: 600;
+  display: none; margin-bottom: 16px;
+}
+.login-hint {
+  font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.6;
+  border-top: 1px solid var(--border); padding-top: 14px;
+}
+.login-hint strong { color: var(--text); }
+
+/* ── SHELL ── */
+.shell { display: grid; grid-template-rows: 56px 1fr; height: 100vh; }
+
+/* ── TOP BAR ── */
+.topbar {
+  background: var(--surface); border-bottom: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; gap: 16px; z-index: 100;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.brand-name { font-size: 13px; font-weight: 700; }
+.brand-sub { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+.nav-tabs { display: flex; gap: 2px; }
+.nav-tab { padding: 7px 16px; border-radius: 8px; border: none; background: transparent; font-family: var(--font); font-size: 12.5px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all .18s; display: flex; align-items: center; gap: 6px; }
+.nav-tab:hover { background: var(--surface2); color: var(--text); }
+.nav-tab.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.live-pill { display: flex; align-items: center; gap: 5px; padding: 5px 10px; background: var(--accent-light); border-radius: 99px; font-size: 11px; color: var(--accent); font-weight: 600; font-family: var(--mono); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-mid); animation: blink 1.6s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.lock-btn { padding: 7px 13px; background: transparent; border: 1.5px solid var(--border); border-radius: 8px; font-family: var(--font); font-size: 12px; color: var(--muted); cursor: pointer; transition: all .18s; }
+.lock-btn:hover { border-color: var(--warn); color: var(--warn); }
+
+/* ── MAIN ── */
+.main { display: none; height: calc(100vh - 56px); overflow: hidden; }
+.main.active { display: flex; }
+
+/* ── DASHBOARD ── */
+#view-dashboard { flex-direction: row; }
+.sidebar { width: 268px; min-width: 268px; background: var(--surface); border-right: 1.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+.map-area { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+.right-col { width: 290px; min-width: 290px; background: var(--surface); border-left: 1.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+
+.sb-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.sb-label { font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); font-weight: 500; margin-bottom: 10px; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kpi { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px; text-align: center; }
+.kpi-num { font-size: 24px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.kpi.k-red { border-top: 3px solid var(--warn); } .kpi.k-red .kpi-num { color: var(--warn); }
+.kpi.k-orange { border-top: 3px solid var(--orange); } .kpi.k-orange .kpi-num { color: var(--orange); }
+.kpi.k-green { border-top: 3px solid var(--accent-mid); } .kpi.k-green .kpi-num { color: var(--accent); }
+.kpi.k-blue { border-top: 3px solid var(--blue); } .kpi.k-blue .kpi-num { color: var(--blue); }
+
+.layer-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.layer-row:last-child { border-bottom: none; }
+.layer-left { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; }
+.layer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.layer-count { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+.sw { width: 36px; height: 20px; border-radius: 10px; background: var(--border2); position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0; }
+.sw::after { content:''; position:absolute; width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.2); }
+.sw.on { background: var(--accent); }
+.sw.on::after { left:19px; }
+
+.risk-item { margin-bottom: 10px; }
+.risk-item:last-child { margin-bottom: 0; }
+.risk-top { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; }
+.risk-pct { font-family: var(--mono); font-weight: 600; font-size: 11px; }
+.risk-bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.risk-fill { height: 100%; border-radius: 3px; transition: width 1.2s cubic-bezier(.25,.46,.45,.94); }
+
+.map-toolbar { position: absolute; top: 14px; left: 14px; z-index: 500; display: flex; flex-direction: column; gap: 6px; }
+.mtb-group { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.mtb-btn { display: block; width: 100%; padding: 8px 14px; border: none; background: transparent; font-family: var(--font); font-size: 11.5px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; text-align: left; border-bottom: 1px solid var(--border); }
+.mtb-btn:last-child { border-bottom: none; }
+.mtb-btn:hover { background: var(--surface2); }
+.mtb-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+
+.map-legend { position: absolute; bottom: 24px; left: 14px; z-index: 500; background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 150px; }
+.legend-title { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; margin-bottom: 5px; }
+.legend-item:last-child { margin-bottom: 0; }
+.legend-sym { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-line { width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+.rc-tabs { display: flex; border-bottom: 1.5px solid var(--border); }
+.rc-tab { flex: 1; padding: 12px 6px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all .18s; margin-bottom: -1.5px; }
+.rc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.rc-body { padding: 12px; flex: 1; overflow-y: auto; }
+
+.rep-card { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all .18s; position: relative; overflow: hidden; }
+.rep-card::before { content:''; position:absolute; left:0;top:0;bottom:0;width:3.5px; }
+.rep-card.sev-high::before { background: var(--warn); }
+.rep-card.sev-med::before { background: var(--orange); }
+.rep-card.sev-low::before { background: var(--accent-mid); }
+.rep-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateX(2px); }
+.rep-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+.rep-type { font-size: 12.5px; font-weight: 600; }
+.rep-badge { font-size: 9.5px; padding: 2px 8px; border-radius: 99px; font-family: var(--mono); font-weight: 600; }
+.rb-high { background: var(--warn-light); color: var(--warn); }
+.rb-med { background: var(--orange-light); color: var(--orange); }
+.rb-low { background: var(--accent-light); color: var(--accent); }
+.rb-resolved { background: var(--blue-light); color: var(--blue); }
+.rep-loc { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+.rep-meta { font-size: 10px; color: var(--muted); font-family: var(--mono); display: flex; gap: 8px; }
+.rep-actions { display: flex; gap: 5px; margin-top: 8px; }
+.rep-act { flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-family: var(--font); font-size: 10.5px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); }
+.rep-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.rep-act.resolve { background: var(--accent); color: #fff; border-color: var(--accent); }
+.rep-act.resolve:hover { background: #155c2e; }
+
+/* ── ADMIN VIEW ── */
+#view-admin { flex-direction: column; overflow-y: auto; background: var(--bg); }
+.admin-wrap { padding: 24px; max-width: 960px; margin: 0 auto; width: 100%; }
+.admin-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+.admin-title { font-size: 18px; font-weight: 700; }
+.admin-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.admin-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.as-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.as-num { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.as-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.admin-table-wrap { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.admin-toolbar { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filter-pill { padding: 5px 12px; border-radius: 99px; font-size: 11.5px; font-weight: 600; border: 1.5px solid var(--border); background: transparent; cursor: pointer; color: var(--muted); transition: all .15s; font-family: var(--font); }
+.filter-pill:hover { border-color: var(--accent); color: var(--accent); }
+.filter-pill.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.admin-table { width: 100%; border-collapse: collapse; }
+.admin-table th { padding: 10px 14px; background: var(--surface2); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; text-align: left; font-family: var(--mono); }
+.admin-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; vertical-align: middle; }
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table tr:hover td { background: var(--surface2); }
+.tbl-badge { font-size: 10px; padding: 3px 9px; border-radius: 99px; font-family: var(--mono); font-weight: 600; }
+.tbl-act { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; font-family: var(--font); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); margin-right: 3px; }
+.tbl-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.tbl-act.res { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tbl-act.res:hover { background: #155c2e; }
+
+.export-btn { padding: 9px 16px; background: var(--accent); border: none; border-radius: 8px; color: #fff; font-family: var(--font); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: all .18s; }
+.export-btn:hover { background: #155c2e; }
+
+/* Leaflet */
+.leaflet-container { font-family: var(--font); background: #e8eee8 !important; }
+.leaflet-popup-content-wrapper { background: var(--surface); color: var(--text); border: 1.5px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); }
+.leaflet-popup-tip { background: var(--surface); }
+.leaflet-popup-content { font-size: 12.5px; margin: 13px 15px; }
+.pu-title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.pu-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.pu-badge { display:inline-block; font-size:10px; padding:2px 9px; border-radius:99px; margin-top:6px; font-weight:600; }
+
+/* New badge */
+.new-tag { font-size: 9px; background: var(--accent); color: #fff; padding: 1px 5px; border-radius: 3px; font-family: var(--mono); vertical-align: middle; margin-left: 3px; }
+
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🌿</div>
+    <div class="login-title">Municipal Dashboard</div>
+    <div class="login-sub">Namasuba–Lufuka Environmental Management System<br>Makindye Ssabagabo Municipal Council</div>
+
+    <div class="login-error" id="loginError">❌ Incorrect password. Please try again.</div>
+
+    <label class="login-label">STAFF PASSWORD</label>
+    <input class="login-input" type="password" id="pwInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">🔓 Access Dashboard</button>
+
+    <div class="login-hint">
+      This dashboard is for <strong>Makindye Ssabagabo Municipal Council</strong> staff only.<br>
+      Community members: use the <strong>Community Reporting Tool</strong> to submit issues.<br><br>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--border2)">Demo password: <strong style="color:var(--muted)">makindye2025</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN SHELL ── -->
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">🌿</div>
+      <div>
+        <div class="brand-name">Namasuba–Lufuka Environmental Dashboard</div>
+        <div class="brand-sub">Makindye Ssabagabo Municipal Council · Staff View</div>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" onclick="switchView('dashboard',this)">🗺️ Map Dashboard</button>
+      <button class="nav-tab" onclick="switchView('admin',this)">⚙️ Manage Reports</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="live-pill"><div class="live-dot"></div><span id="liveCount">Loading...</span></div>
+      <button class="lock-btn" onclick="lockDashboard()">🔒 Lock</button>
+    </div>
+  </header>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="view-dashboard" class="main active">
+    <aside class="sidebar">
+      <div class="sb-section">
+        <div class="sb-label">Summary</div>
+        <div class="kpi-row">
+          <div class="kpi k-red"><div class="kpi-num" id="kpi-dump">—</div><div class="kpi-lbl">Dump Sites</div></div>
+          <div class="kpi k-orange"><div class="kpi-num" id="kpi-block">—</div><div class="kpi-lbl">Blocked Drains</div></div>
+          <div class="kpi k-green"><div class="kpi-num" id="kpi-res">—</div><div class="kpi-lbl">Resolved</div></div>
+          <div class="kpi k-blue"><div class="kpi-num" id="kpi-new">—</div><div class="kpi-lbl">New (24h)</div></div>
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Map Layers</div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:#c0392b"></span>Illegal Dumping<span class="layer-count" id="lc-dump"></span></div>
+          <div class="sw on" onclick="toggleLayer(this,'dump')"></div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:#d4691e"></span>Blocked Drainage<span class="layer-count" id="lc-block"></span></div>
+          <div class="sw on" onclick="toggleLayer(this,'block')"></div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:#3b82f6"></span>Drainage Network</div>
+          <div class="sw on" onclick="toggleLayer(this,'channels')"></div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:rgba(192,57,43,.35)"></span>Hotspot Heatmap</div>
+          <div class="sw on" onclick="toggleLayer(this,'heat')"></div>
+        </div>
+        <div class="layer-row" style="border-bottom:none">
+          <div class="layer-left"><span class="layer-dot" style="background:#1a6b3a"></span>Resolved Reports</div>
+          <div class="sw" onclick="toggleLayer(this,'resolved')"></div>
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Flood Risk by Zone</div>
+        <div id="riskBars"></div>
+      </div>
+      <div class="sb-section" style="border-bottom:none">
+        <div class="sb-label">Network Status</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8">
+          <div>📏 Total network: <strong style="color:var(--text)">~4.2 km</strong></div>
+          <div>🚧 Blocked (est.): <strong id="blockedKm" style="color:var(--orange)">—</strong></div>
+          <div>✅ Clear: <strong style="color:var(--accent)">~3.1 km</strong></div>
+          <div>🔄 Last sync: <strong id="lastSync" style="color:var(--text)">—</strong></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="map-area">
+      <div class="map-toolbar">
+        <div class="mtb-group">
+          <button class="mtb-btn active" onclick="setBasemap('street',this)">🗺 Street</button>
+          <button class="mtb-btn" onclick="setBasemap('satellite',this)">🛰 Satellite</button>
+          <button class="mtb-btn" onclick="setBasemap('topo',this)">⛰ Topo</button>
+        </div>
+      </div>
+      <div id="map"></div>
+      <div class="map-legend">
+        <div class="legend-title">Legend</div>
+        <div class="legend-item"><div class="legend-sym" style="background:#c0392b"></div>Illegal Dumping</div>
+        <div class="legend-item"><div class="legend-sym" style="background:#d4691e"></div>Blocked Drain</div>
+        <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div>Drain Network</div>
+        <div class="legend-item"><div class="legend-sym" style="background:#1a6b3a"></div>Resolved</div>
+      </div>
+    </div>
+
+    <aside class="right-col">
+      <div class="rc-tabs">
+        <div class="rc-tab active" onclick="rcTab(this,'open')">Open <span id="openBadge" style="font-family:var(--mono);font-size:10px;background:var(--warn-light);color:var(--warn);padding:1px 6px;border-radius:4px;margin-left:3px"></span></div>
+        <div class="rc-tab" onclick="rcTab(this,'resolved')">Resolved</div>
+      </div>
+      <div class="rc-body" id="rcBody"></div>
+    </aside>
+  </div>
+
+  <!-- ADMIN VIEW -->
+  <div id="view-admin" class="main">
+    <div class="admin-wrap">
+      <div class="admin-hdr">
+        <div>
+          <div class="admin-title">⚙️ Reports Management</div>
+          <div class="admin-sub">Makindye Ssabagabo Municipal Council · Environmental Team</div>
+        </div>
+        <button class="export-btn" onclick="exportCSV()">⬇️ Export CSV for QGIS</button>
+      </div>
+      <div class="admin-stats">
+        <div class="as-card"><div class="as-num" id="adm-total" style="color:var(--text)">—</div><div class="as-lbl">Total Reports</div></div>
+        <div class="as-card"><div class="as-num" id="adm-open" style="color:var(--warn)">—</div><div class="as-lbl">Open Issues</div></div>
+        <div class="as-card"><div class="as-num" id="adm-high" style="color:var(--orange)">—</div><div class="as-lbl">High Severity</div></div>
+        <div class="as-card"><div class="as-num" id="adm-res" style="color:var(--accent)">—</div><div class="as-lbl">Resolved</div></div>
+      </div>
+      <div class="admin-table-wrap">
+        <div class="admin-toolbar">
+          <button class="filter-pill on" onclick="admFilter(this,'all')">All</button>
+          <button class="filter-pill" onclick="admFilter(this,'high')">🔴 High</button>
+          <button class="filter-pill" onclick="admFilter(this,'med')">🟠 Medium</button>
+          <button class="filter-pill" onclick="admFilter(this,'low')">🟢 Low</button>
+          <button class="filter-pill" onclick="admFilter(this,'resolved')">✅ Resolved</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="admin-table"><thead><tr>
+            <th>Ref</th><th>Type</th><th>Location</th><th>Severity</th><th>Status</th><th>Reported</th><th>Actions</th>
+          </tr></thead><tbody id="admTbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── PASSWORDS ──
+// Change this to your real password before handing over to the council
+const PASSWORDS = ['makindye2025', 'council2025'];
+
+function doLogin() {
+  const pw = document.getElementById('pwInput').value;
+  if (PASSWORDS.includes(pw)) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    sessionStorage.setItem('msc_auth', '1');
+    loadReports();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    const inp = document.getElementById('pwInput');
+    inp.classList.add('shake');
+    setTimeout(() => inp.classList.remove('shake'), 400);
+    inp.value = '';
+  }
+}
+
+function lockDashboard() {
+  sessionStorage.removeItem('msc_auth');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('pwInput').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+// Check if already authenticated this session
+if (sessionStorage.getItem('msc_auth') === '1') {
+  document.getElementById('loginScreen').classList.add('hidden');
+}
+
+// ── DATA ──
+const STORE_KEY = 'namasuba_reports_v3';
+let reports = [];
+let currentFilter = 'open';
+let admCurrentFilter = 'all';
+
+const seedReports = [
+  { id:'RPT-SEED01', type:'dump', sev:'high', loc:'Namasuba Market Rear Access Road', lat:0.2600, lng:32.5520, desc:'Large accumulation of mixed solid waste blocking pedestrian path and spilling into adjacent open drain.', date:Date.now()-7200000, status:'open', contact:'' },
+  { id:'RPT-SEED02', type:'block', sev:'high', loc:'Drainage Channel CH-07, near Lufuka Junction', lat:0.2625, lng:32.5532, desc:'Drain completely blocked by waste. Water overflow onto road during last rainfall.', date:Date.now()-18000000, status:'open', contact:'' },
+  { id:'RPT-SEED03', type:'dump', sev:'med', loc:'Namasuba Rd, opposite Primary School', lat:0.2583, lng:32.5501, desc:'Moderate dump site, mixed plastics and organic waste. Present ~2 weeks.', date:Date.now()-86400000, status:'open', contact:'' },
+  { id:'RPT-SEED04', type:'block', sev:'high', loc:'Market Street Drain CH-12', lat:0.2598, lng:32.5558, desc:'Partial blockage with solid waste. Flooding risk during rainy season.', date:Date.now()-10800000, status:'open', contact:'' },
+  { id:'RPT-SEED05', type:'dump', sev:'low', loc:'Open Ground – Section 4, Lufuka', lat:0.2612, lng:32.5591, desc:'Small informal dump. Recently started.', date:Date.now()-172800000, status:'open', contact:'' },
+  { id:'RPT-SEED06', type:'block', sev:'med', loc:'Residential Zone Drain CH-03', lat:0.2646, lng:32.5512, desc:'50% blockage. Vegetation and plastic waste mixed.', date:Date.now()-259200000, status:'resolved', contact:'' },
+  { id:'RPT-SEED07', type:'dump', sev:'high', loc:'Zone A – Near Health Centre', lat:0.2638, lng:32.5548, desc:'High-risk site adjacent to footpath used to access health centre.', date:Date.now()-3600000, status:'open', contact:'' },
+];
+
+// ── MAP ──
+const map = L.map('map', { zoomControl: false }).setView([0.262, 32.554], 14);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+const basemaps = {
+  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution:'© Esri', maxZoom:19 }),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution:'© OpenTopoMap', maxZoom:17 }),
+};
+basemaps.street.addTo(map);
+
+const drainageLines = [
+  [[0.2575,32.5488],[0.2592,32.5508],[0.2608,32.5522],[0.2625,32.5533],[0.2645,32.5550],[0.2660,32.5570]],
+  [[0.2588,32.5545],[0.2605,32.5552],[0.2628,32.5556]],
+  [[0.2598,32.5508],[0.2614,32.5498],[0.2636,32.5492]],
+  [[0.2648,32.5528],[0.2651,32.5545],[0.2655,32.5558]],
+];
+const channelLayer = L.layerGroup();
+drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(channelLayer));
+channelLayer.addTo(map);
+
+const mLayers = { dump: L.layerGroup().addTo(map), block: L.layerGroup().addTo(map), resolved: L.layerGroup(), heat: L.layerGroup().addTo(map) };
+const allLayers = { dump: mLayers.dump, block: mLayers.block, channels: channelLayer, heat: mLayers.heat, resolved: mLayers.resolved };
+
+function makeIcon(type, sev, isNew) {
+  const cols = { dump:{high:'#c0392b',med:'#d4691e',low:'#5dade2'}, block:{high:'#c0392b',med:'#d4691e',low:'#f4d03f'}, flood:{high:'#1a5276',med:'#2e86c1',low:'#5dade2'}, other:{high:'#7d3c98',med:'#9b59b6',low:'#c39bd3'}, resolved:{high:'#1a6b3a',med:'#1a6b3a',low:'#1a6b3a'} };
+  const ems = { dump:'🗑', block:'🚧', flood:'🌊', other:'⚠️', resolved:'✅' };
+  const col = cols[type]?.[sev] || '#888';
+  const ring = isNew ? `border:2.5px solid #fff;box-shadow:0 0 0 3px ${col}55,0 3px 10px rgba(0,0,0,.25)` : `border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.2)`;
+  return L.divIcon({ className:'', html:`<div style="background:${col};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;${ring}">${ems[type]||'📍'}</div>`, iconSize:[32,32], iconAnchor:[16,16] });
+}
+
+function rebuildMarkers() {
+  Object.values(mLayers).forEach(l => l.clearLayers());
+  const heatPts = [];
+  reports.forEach(r => {
+    if (!r.lat || !r.lng) return;
+    const isNew = Date.now()-r.date < 86400000;
+    const tgt = r.status==='resolved' ? mLayers.resolved : (mLayers[r.type] || mLayers.dump);
+    const iconType = r.status==='resolved' ? 'resolved' : r.type;
+    const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
+    const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
+    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&r.status==='open'?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>`, {maxWidth:260});
+    m.addTo(tgt);
+    if (r.status!=='resolved') heatPts.push([r.lat, r.lng, r.sev==='high'?1:r.sev==='med'?.6:.3]);
+  });
+  if (heatPts.length) L.heatLayer(heatPts, {radius:35,blur:25,maxZoom:16,gradient:{0.3:'#f9e79f',0.6:'#f97316',1:'#ef4444'}}).addTo(mLayers.heat);
+}
+
+function toggleLayer(sw, key) {
+  sw.classList.toggle('on');
+  const l = allLayers[key]; if (!l) return;
+  sw.classList.contains('on') ? l.addTo(map) : map.removeLayer(l);
+}
+function setBasemap(key, btn) {
+  document.querySelectorAll('.mtb-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  Object.values(basemaps).forEach(t=>map.removeLayer(t));
+  basemaps[key].addTo(map);
+}
+
+// ── HELPERS ──
+function timeAgo(ts) {
+  const s = Math.floor((Date.now()-ts)/1000);
+  if (s<60) return 'just now';
+  if (s<3600) return Math.floor(s/60)+'m ago';
+  if (s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+// ── RENDER ──
+function updateKPIs() {
+  const open = reports.filter(r=>r.status==='open');
+  const res = reports.filter(r=>r.status==='resolved');
+  const dumps = open.filter(r=>r.type==='dump');
+  const blocks = open.filter(r=>r.type==='block');
+  const newR = open.filter(r=>Date.now()-r.date<86400000);
+  document.getElementById('kpi-dump').textContent = dumps.length;
+  document.getElementById('kpi-block').textContent = blocks.length;
+  document.getElementById('kpi-res').textContent = res.length;
+  document.getElementById('kpi-new').textContent = newR.length;
+  document.getElementById('liveCount').textContent = reports.length+' report'+(reports.length!==1?'s':'');
+  document.getElementById('openBadge').textContent = open.length;
+  document.getElementById('lc-dump').textContent = ' · '+dumps.length;
+  document.getElementById('lc-block').textContent = ' · '+blocks.length;
+  document.getElementById('blockedKm').textContent = Math.min(blocks.length*.15,1.1).toFixed(1)+' km est.';
+  document.getElementById('lastSync').textContent = new Date().toLocaleTimeString();
+
+  const riskColors = s => s>65?'var(--warn)':s>40?'var(--orange)':'var(--accent-mid)';
+  const riskLabel = s => s>65?'HIGH':s>40?'MED':'LOW';
+  const zones = [
+    {name:'Zone A – Namasuba', score:Math.min(100,dumps.length*15+40)},
+    {name:'Zone B – Lufuka', score:Math.min(100,blocks.length*18+20)},
+    {name:'Zone C – Market', score:Math.min(100,(dumps.length+blocks.length)*10+15)},
+    {name:'Zone D – Residential', score:Math.min(100,res.length*3+10)},
+  ];
+  document.getElementById('riskBars').innerHTML = zones.map(z=>`
+    <div class="risk-item">
+      <div class="risk-top"><span style="font-size:11.5px">${z.name}</span><span class="risk-pct" style="color:${riskColors(z.score)}">${riskLabel(z.score)}</span></div>
+      <div class="risk-bar"><div class="risk-fill" style="width:${z.score}%;background:${riskColors(z.score)}"></div></div>
+    </div>`).join('');
+
+  document.getElementById('adm-total').textContent = reports.length;
+  document.getElementById('adm-open').textContent = open.length;
+  document.getElementById('adm-high').textContent = reports.filter(r=>r.sev==='high'&&r.status==='open').length;
+  document.getElementById('adm-res').textContent = res.length;
+}
+
+function renderRightCol() {
+  const list = (currentFilter==='open' ? reports.filter(r=>r.status==='open') : reports.filter(r=>r.status==='resolved')).sort((a,b)=>b.date-a.date);
+  const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
+  if (!list.length) {
+    document.getElementById('rcBody').innerHTML = `<div style="text-align:center;padding:40px 16px;color:var(--muted)"><div style="font-size:32px;margin-bottom:10px">${currentFilter==='open'?'🎉':'📋'}</div><div style="font-size:13px">${currentFilter==='open'?'No open issues!':'No resolved reports yet.'}</div></div>`;
+    return;
+  }
+  document.getElementById('rcBody').innerHTML = list.map(r => {
+    const isNew = Date.now()-r.date<86400000&&r.status==='open';
+    const badge = r.status==='resolved' ? '<span class="rep-badge rb-resolved">RESOLVED</span>' : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    return `<div class="rep-card sev-${r.sev}" onclick="flyTo(${r.lat},${r.lng})">
+      <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
+      <div class="rep-loc">📍 ${r.loc}</div>
+      <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${r.status==='open'?`<div class="rep-actions">
+        <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">👤 Assign</button>
+        <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderAdminTable() {
+  const filtered = admCurrentFilter==='all' ? reports
+    : admCurrentFilter==='resolved' ? reports.filter(r=>r.status==='resolved')
+    : reports.filter(r=>r.sev===admCurrentFilter&&r.status==='open');
+  const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding Risk',other:'Other Hazard'};
+  const sevStyle = {high:`background:var(--warn-light);color:var(--warn)`,med:`background:var(--orange-light);color:var(--orange)`,low:`background:var(--accent-light);color:var(--accent)`};
+  document.getElementById('admTbody').innerHTML = !filtered.length
+    ? `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">No reports found.</td></tr>`
+    : filtered.sort((a,b)=>b.date-a.date).map(r=>`
+    <tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.id}</td>
+      <td>${tNames[r.type]||r.type}</td>
+      <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.loc}">${r.loc}</td>
+      <td><span class="tbl-badge" style="${sevStyle[r.sev]||''}">${r.sev?.toUpperCase()}</span></td>
+      <td><span class="tbl-badge" style="${r.status==='resolved'?'background:var(--blue-light);color:var(--blue)':'background:var(--warn-light);color:var(--warn)'}">${r.status.toUpperCase()}</span></td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.date)}</td>
+      <td>${r.lat?`<button class="tbl-act" onclick="flyAndSwitch(${r.lat},${r.lng})">🗺 View</button>`:''}
+          ${r.status==='open'?`<button class="tbl-act res" onclick="resolveReport('${r.id}')">Resolve</button>`:''}</td>
+    </tr>`).join('');
+}
+
+function refresh() { updateKPIs(); renderRightCol(); renderAdminTable(); rebuildMarkers(); }
+
+// ── STORAGE ──
+async function loadReports() {
+  try {
+    const res = await window.storage.get(STORE_KEY, true);
+    reports = res ? JSON.parse(res.value) : [...seedReports];
+  } catch { reports = [...seedReports]; }
+  refresh();
+  // Poll every 30s for new community reports
+  setInterval(async () => {
+    try {
+      const res = await window.storage.get(STORE_KEY, true);
+      if (res) { reports = JSON.parse(res.value); refresh(); }
+    } catch {}
+  }, 30000);
+}
+
+async function saveReports() {
+  try { await window.storage.set(STORE_KEY, JSON.stringify(reports), true); } catch {}
+  refresh();
+}
+
+// ── ACTIONS ──
+function resolveReport(id) {
+  const r = reports.find(r=>r.id===id);
+  if (r) { r.status='resolved'; saveReports(); }
+}
+function assignReport(id) {
+  alert(`Report ${id} flagged for field team assignment.\n\nIn a live deployment this would send an SMS to the designated waste collection crew.`);
+}
+function flyTo(lat, lng) {
+  if (!lat||!lng) return;
+  switchView('dashboard', document.querySelectorAll('.nav-tab')[0]);
+  setTimeout(()=>{ map.flyTo([lat,lng],17,{duration:1}); map.invalidateSize(); },150);
+}
+function flyAndSwitch(lat,lng) { flyTo(lat,lng); }
+function rcTab(el,tab) {
+  document.querySelectorAll('.rc-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active'); currentFilter=tab; renderRightCol();
+}
+function admFilter(el,val) {
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on'); admCurrentFilter=val; renderAdminTable();
+}
+function switchView(view,btn) {
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.main').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if(view==='dashboard') setTimeout(()=>map.invalidateSize(),120);
+}
+function exportCSV() {
+  const hdr = ['ID','Type','Severity','Location','Latitude','Longitude','Status','Description','Contact','Date'];
+  const rows = reports.map(r=>[r.id,r.type,r.sev,`"${r.loc}"`,r.lat||'',r.lng||'',r.status,`"${(r.desc||'').replace(/"/g,"'")}"`,r.contact||'',new Date(r.date).toISOString()]);
+  const csv = [hdr,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'namasuba_reports_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// Auto-load if already authenticated
+if (sessionStorage.getItem('msc_auth')==='1') loadReports();
+</script>
+</body>
+</html>
