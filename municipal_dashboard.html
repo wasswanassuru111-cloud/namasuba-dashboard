@@ -8,6 +8,38 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQnuWNtgPPRnxTgne8xxm7LNzQYvsfRcg",
+    authDomain: "lufuka-dashboard.firebaseapp.com",
+    projectId: "lufuka-dashboard",
+    storageBucket: "lufuka-dashboard.firebasestorage.app",
+    messagingSenderId: "658485725632",
+    appId: "1:658485725632:web:f0cbe775bff9ccea8ee025"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Expose to global scope for use in non-module scripts
+  window._db = db;
+  window._fbCollection = collection;
+  window._fbAddDoc = addDoc;
+  window._fbGetDocs = getDocs;
+  window._fbDoc = doc;
+  window._fbUpdateDoc = updateDoc;
+  window._fbOnSnapshot = onSnapshot;
+  window._fbQuery = query;
+  window._fbOrderBy = orderBy;
+  window._fbReady = true;
+
+  // Signal that Firebase is ready
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
 <style>
 :root {
   --bg: #f0f2f0;
@@ -32,9 +64,131 @@
   --radius: 12px;
   --shadow: 0 2px 12px rgba(26,46,26,.08);
   --shadow-md: 0 4px 24px rgba(26,46,26,.12);
+  --bottombar: 64px;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; }
+
+/* ── MOBILE BOTTOM TAB BAR ── */
+.mobile-tabbar {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  background: var(--surface); border-top: 1.5px solid var(--border);
+  height: var(--bottombar);
+  padding: 0 8px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-tabbar-inner {
+  display: flex; height: 100%; align-items: center; justify-content: space-around;
+}
+.mob-tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px; padding: 6px 4px;
+  border: none; background: transparent; cursor: pointer;
+  border-radius: 10px; transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.mob-tab .mt-icon { font-size: 20px; line-height: 1; }
+.mob-tab .mt-label { font-size: 10px; font-weight: 600; color: var(--muted); font-family: var(--font); }
+.mob-tab.active .mt-label { color: var(--accent); }
+.mob-tab.active .mt-icon { filter: none; }
+.mob-tab-indicator {
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  width: 28px; height: 3px; border-radius: 2px; background: var(--accent);
+  opacity: 0; transition: opacity .2s;
+}
+.mob-tab.active .mob-tab-indicator { opacity: 1; }
+.mob-badge {
+  position: absolute; top: 4px; right: 14px;
+  background: var(--warn); color: #fff; border-radius: 99px;
+  font-size: 9px; font-weight: 700; padding: 1px 5px;
+  font-family: var(--mono); min-width: 16px; text-align: center;
+  display: none;
+}
+.mob-badge.show { display: block; }
+
+/* ── MOBILE PANEL SYSTEM ── */
+.mob-panel {
+  display: none;
+  position: fixed; inset: 0; top: 56px; bottom: var(--bottombar);
+  background: var(--bg); overflow-y: auto; z-index: 50;
+}
+.mob-panel.active { display: block; }
+
+/* Map panel gets special treatment — no scroll, full height */
+#mob-map-panel {
+  overflow: hidden;
+}
+#mob-map-panel #map {
+  width: 100%; height: 100%;
+}
+
+/* Mobile KPI strip */
+.mob-kpi-strip {
+  display: flex; gap: 8px; padding: 12px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.mob-kpi-strip::-webkit-scrollbar { display: none; }
+.mob-kpi {
+  flex-shrink: 0; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; text-align: center; min-width: 80px;
+}
+.mob-kpi-num { font-size: 20px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.mob-kpi-lbl { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+.mob-kpi.k-red .mob-kpi-num { color: var(--warn); }
+.mob-kpi.k-orange .mob-kpi-num { color: var(--orange); }
+.mob-kpi.k-green .mob-kpi-num { color: var(--accent); }
+.mob-kpi.k-blue .mob-kpi-num { color: var(--blue); }
+
+/* Mobile reports list */
+.mob-reports-wrap { padding: 0 12px 20px; }
+.mob-section-label {
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); font-family: var(--mono); padding: 12px 0 8px;
+}
+.mob-filter-row {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.mob-filter-row::-webkit-scrollbar { display: none; }
+.mob-pill {
+  flex-shrink: 0; padding: 5px 12px; border-radius: 99px;
+  font-size: 11.5px; font-weight: 600; border: 1.5px solid var(--border);
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-family: var(--font); -webkit-tap-highlight-color: transparent;
+}
+.mob-pill.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+/* Mobile admin */
+.mob-admin-wrap { padding: 12px; }
+.mob-admin-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.mob-as { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 12px; }
+.mob-as-num { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+.mob-as-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* Mobile map floating buttons */
+.mob-map-overlay {
+  position: absolute; bottom: 16px; right: 12px; z-index: 500;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mob-map-btn {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  box-shadow: var(--shadow); font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+
+/* Map layer legend on mobile */
+.mob-map-legend {
+  position: absolute; bottom: 16px; left: 12px; z-index: 500;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow);
+}
+
 
 /* ── LOGIN SCREEN ── */
 .login-screen {
@@ -273,7 +427,7 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
       <button class="nav-tab" onclick="switchView('admin',this)">⚙️ Manage Reports</button>
     </nav>
     <div class="topbar-right">
-      <div class="live-pill"><div class="live-dot"></div><span id="liveCount">Loading...</span></div>
+      <div class="live-pill"><div class="live-dot"></div><span id="liveCount">Connecting...</span></div>
       <button class="lock-btn" onclick="lockDashboard()">🔒 Lock</button>
     </div>
   </header>
@@ -389,6 +543,99 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
   </div>
 </div>
 
+<!-- ── MOBILE BOTTOM TAB BAR ── -->
+<div class="mobile-tabbar" id="mobileTabbar">
+  <div class="mobile-tabbar-inner">
+    <button class="mob-tab active" onclick="mobTab(this,'map')" id="mobt-map">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">🗺️</div>
+      <div class="mt-label">Map</div>
+    </button>
+    <button class="mob-tab" onclick="mobTab(this,'reports')" id="mobt-reports">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">📋</div>
+      <div class="mt-label">Reports</div>
+      <div class="mob-badge" id="mobBadge"></div>
+    </button>
+    <button class="mob-tab" onclick="mobTab(this,'stats')" id="mobt-stats">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">📊</div>
+      <div class="mt-label">Stats</div>
+    </button>
+    <button class="mob-tab" onclick="mobTab(this,'admin')" id="mobt-admin">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">⚙️</div>
+      <div class="mt-label">Admin</div>
+    </button>
+  </div>
+</div>
+
+<!-- ── MOBILE PANELS ── -->
+
+<!-- Map panel -->
+<div class="mob-panel active" id="mob-map-panel">
+  <div id="mob-map" style="width:100%;height:100%;position:relative;">
+    <div class="mob-map-legend">
+      <div style="font-size:9.5px;color:var(--muted);font-family:var(--mono);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Legend</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><div style="width:10px;height:10px;border-radius:50%;background:#c0392b;flex-shrink:0"></div>Dumping</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><div style="width:10px;height:10px;border-radius:50%;background:#d4691e;flex-shrink:0"></div>Blocked</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:14px;height:3px;border-radius:2px;background:#3b82f6;flex-shrink:0"></div>Drain</div>
+    </div>
+  </div>
+</div>
+
+<!-- Reports panel -->
+<div class="mob-panel" id="mob-reports-panel">
+  <div class="mob-kpi-strip">
+    <div class="mob-kpi k-red"><div class="mob-kpi-num" id="m-kpi-dump">—</div><div class="mob-kpi-lbl">Dump Sites</div></div>
+    <div class="mob-kpi k-orange"><div class="mob-kpi-num" id="m-kpi-block">—</div><div class="mob-kpi-lbl">Blocked</div></div>
+    <div class="mob-kpi k-green"><div class="mob-kpi-num" id="m-kpi-res">—</div><div class="mob-kpi-lbl">Resolved</div></div>
+    <div class="mob-kpi k-blue"><div class="mob-kpi-num" id="m-kpi-new">—</div><div class="mob-kpi-lbl">New 24h</div></div>
+  </div>
+  <div class="mob-reports-wrap">
+    <div class="mob-filter-row">
+      <button class="mob-pill on" onclick="mobRepFilter(this,'open')">Open</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'resolved')">Resolved</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'high')">🔴 High</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'med')">🟠 Medium</button>
+    </div>
+    <div id="mob-rep-list"></div>
+  </div>
+</div>
+
+<!-- Stats panel -->
+<div class="mob-panel" id="mob-stats-panel">
+  <div style="padding:16px">
+    <div class="mob-section-label">Flood Risk by Zone</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+      <div id="mob-risk-bars"></div>
+    </div>
+    <div class="mob-section-label">Network Status</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:13px;color:var(--muted);line-height:2">
+      <div>📏 Total network: <strong style="color:var(--text)">~4.2 km</strong></div>
+      <div>🚧 Blocked (est.): <strong id="mob-blockedKm" style="color:var(--orange)">—</strong></div>
+      <div>✅ Clear: <strong style="color:var(--accent)">~3.1 km</strong></div>
+      <div>🔄 Last sync: <strong id="mob-lastSync" style="color:var(--text)">—</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin panel -->
+<div class="mob-panel" id="mob-admin-panel">
+  <div class="mob-admin-wrap">
+    <div class="mob-section-label">Summary</div>
+    <div class="mob-admin-stats">
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-total" style="color:var(--text)">—</div><div class="mob-as-lbl">Total Reports</div></div>
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-open" style="color:var(--warn)">—</div><div class="mob-as-lbl">Open Issues</div></div>
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-high" style="color:var(--orange)">—</div><div class="mob-as-lbl">High Severity</div></div>
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-res" style="color:var(--accent)">—</div><div class="mob-as-lbl">Resolved</div></div>
+    </div>
+    <button onclick="exportCSV()" style="width:100%;padding:13px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px">⬇️ Export CSV for QGIS</button>
+    <div class="mob-section-label">All Reports</div>
+    <div id="mob-admin-list"></div>
+  </div>
+</div>
+
 <script>
 // ── PASSWORDS ──
 // Change this to your real password before handing over to the council
@@ -422,11 +669,12 @@ if (sessionStorage.getItem('msc_auth') === '1') {
 }
 
 // ── DATA ──
-const STORE_KEY = 'namasuba_reports_v3';
 let reports = [];
 let currentFilter = 'open';
 let admCurrentFilter = 'all';
+let unsubscribeListener = null; // Firebase real-time listener
 
+// Seed data — loaded into Firebase only if collection is empty
 const seedReports = [
   { id:'RPT-SEED01', type:'dump', sev:'high', loc:'Namasuba Market Rear Access Road', lat:0.2600, lng:32.5520, desc:'Large accumulation of mixed solid waste blocking pedestrian path and spilling into adjacent open drain.', date:Date.now()-7200000, status:'open', contact:'' },
   { id:'RPT-SEED02', type:'block', sev:'high', loc:'Drainage Channel CH-07, near Lufuka Junction', lat:0.2625, lng:32.5532, desc:'Drain completely blocked by waste. Water overflow onto road during last rainfall.', date:Date.now()-18000000, status:'open', contact:'' },
@@ -591,30 +839,46 @@ function renderAdminTable() {
 function refresh() { updateKPIs(); renderRightCol(); renderAdminTable(); rebuildMarkers(); }
 
 // ── STORAGE ──
+// ── FIREBASE DATA FUNCTIONS ──
 async function loadReports() {
+  if (!window._fbReady) {
+    // Wait for Firebase to be ready
+    await new Promise(res => window.addEventListener('firebase-ready', res, { once: true }));
+  }
+
+  const db = window._db;
+  const col = window._fbCollection(db, 'reports');
+
+  // Check if collection is empty — if so, seed it
+  const snapshot = await window._fbGetDocs(col);
+  if (snapshot.empty) {
+    console.log('Seeding Firebase with initial data...');
+    for (const r of seedReports) {
+      await window._fbAddDoc(col, r);
+    }
+  }
+
+  // Set up real-time listener — updates dashboard instantly when any report changes
+  if (unsubscribeListener) unsubscribeListener(); // cancel any existing listener
+  unsubscribeListener = window._fbOnSnapshot(col, (snap) => {
+    reports = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    refresh();
+    document.getElementById('lastSync').textContent = new Date().toLocaleTimeString();
+    const mob = document.getElementById('mob-lastSync');
+    if (mob) mob.textContent = new Date().toLocaleTimeString();
+  });
+}
+
+async function resolveReport(id) {
+  if (!window._fbReady) return;
+  const db = window._db;
+  // Find the Firestore doc ID
+  const r = reports.find(r => r.id === id);
+  if (!r || !r._docId) return;
   try {
-    const res = await window.storage.get(STORE_KEY, true);
-    reports = res ? JSON.parse(res.value) : [...seedReports];
-  } catch { reports = [...seedReports]; }
-  refresh();
-  // Poll every 30s for new community reports
-  setInterval(async () => {
-    try {
-      const res = await window.storage.get(STORE_KEY, true);
-      if (res) { reports = JSON.parse(res.value); refresh(); }
-    } catch {}
-  }, 30000);
-}
-
-async function saveReports() {
-  try { await window.storage.set(STORE_KEY, JSON.stringify(reports), true); } catch {}
-  refresh();
-}
-
-// ── ACTIONS ──
-function resolveReport(id) {
-  const r = reports.find(r=>r.id===id);
-  if (r) { r.status='resolved'; saveReports(); }
+    await window._fbUpdateDoc(window._fbDoc(db, 'reports', r._docId), { status: 'resolved' });
+    // Real-time listener will auto-refresh the UI
+  } catch(e) { console.error('Resolve error:', e); alert('Could not resolve report. Check your connection.'); }
 }
 function assignReport(id) {
   alert(`Report ${id} flagged for field team assignment.\n\nIn a live deployment this would send an SMS to the designated waste collection crew.`);
@@ -652,6 +916,211 @@ function exportCSV() {
 
 // Auto-load if already authenticated
 if (sessionStorage.getItem('msc_auth')==='1') loadReports();
+
+// ── MOBILE MAP ──
+let mobMap = null;
+let mobMapInitialized = false;
+
+function initMobileMap() {
+  if (mobMapInitialized) return;
+  mobMapInitialized = true;
+  mobMap = L.map('mob-map', { zoomControl: true }).setView([0.262, 32.554], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(mobMap);
+  drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(mobMap));
+  rebuildMobileMarkers();
+}
+
+function rebuildMobileMarkers() {
+  if (!mobMap) return;
+  mobMap.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.HeatLayer) mobMap.removeLayer(l); });
+  const heatPts = [];
+  reports.forEach(r => {
+    if (!r.lat || !r.lng) return;
+    const isNew = Date.now()-r.date < 86400000;
+    const iconType = r.status==='resolved' ? 'resolved' : r.type;
+    const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
+    const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
+    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)}</div><span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>`, {maxWidth:220});
+    m.addTo(mobMap);
+    if (r.status!=='resolved') heatPts.push([r.lat, r.lng, r.sev==='high'?1:r.sev==='med'?.6:.3]);
+  });
+  if (heatPts.length) L.heatLayer(heatPts, {radius:35,blur:25,maxZoom:16,gradient:{0.3:'#f9e79f',0.6:'#f97316',1:'#ef4444'}}).addTo(mobMap);
+}
+
+// ── MOBILE TAB SWITCHING ──
+let mobCurrentTab = 'map';
+let mobRepCurrentFilter = 'open';
+
+function mobTab(btn, tab) {
+  document.querySelectorAll('.mob-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.mob-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('mob-'+tab+'-panel').classList.add('active');
+  mobCurrentTab = tab;
+  if (tab === 'map') {
+    initMobileMap();
+    setTimeout(() => mobMap && mobMap.invalidateSize(), 120);
+  }
+  if (tab === 'reports') renderMobileReports();
+  if (tab === 'stats') renderMobileStats();
+  if (tab === 'admin') renderMobileAdmin();
+}
+
+function renderMobileReports() {
+  const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
+  let list;
+  if (mobRepCurrentFilter === 'open') list = reports.filter(r=>r.status==='open');
+  else if (mobRepCurrentFilter === 'resolved') list = reports.filter(r=>r.status==='resolved');
+  else list = reports.filter(r=>r.sev===mobRepCurrentFilter&&r.status==='open');
+  list = list.sort((a,b)=>b.date-a.date);
+
+  if (!list.length) {
+    document.getElementById('mob-rep-list').innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">📋</div>No reports found.</div>`;
+    return;
+  }
+  document.getElementById('mob-rep-list').innerHTML = list.map(r => {
+    const isNew = Date.now()-r.date<86400000&&r.status==='open';
+    const badge = r.status==='resolved' ? '<span class="rep-badge rb-resolved">RESOLVED</span>' : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    return `<div class="rep-card sev-${r.sev}" onclick="mobFlyTo(${r.lat},${r.lng})" style="margin-bottom:8px">
+      <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
+      <div class="rep-loc">📍 ${r.loc}</div>
+      <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${r.status==='open'?`<div class="rep-actions">
+        <button class="rep-act" onclick="event.stopPropagation();mobFlyTo(${r.lat},${r.lng})">🗺 View on Map</button>
+        <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}');renderMobileReports()">✅ Resolve</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function mobRepFilter(btn, filter) {
+  document.querySelectorAll('.mob-filter-row .mob-pill').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  mobRepCurrentFilter = filter;
+  renderMobileReports();
+}
+
+function renderMobileStats() {
+  const open = reports.filter(r=>r.status==='open');
+  const blocks = open.filter(r=>r.type==='block');
+  document.getElementById('mob-blockedKm').textContent = Math.min(blocks.length*.15,1.1).toFixed(1)+' km est.';
+  document.getElementById('mob-lastSync').textContent = new Date().toLocaleTimeString();
+  const riskColors = s => s>65?'var(--warn)':s>40?'var(--orange)':'var(--accent-mid)';
+  const riskLabel = s => s>65?'HIGH':s>40?'MED':'LOW';
+  const dumps = open.filter(r=>r.type==='dump');
+  const zones = [
+    {name:'Zone A – Namasuba', score:Math.min(100,dumps.length*15+40)},
+    {name:'Zone B – Lufuka', score:Math.min(100,blocks.length*18+20)},
+    {name:'Zone C – Market', score:Math.min(100,(dumps.length+blocks.length)*10+15)},
+    {name:'Zone D – Residential', score:Math.min(100,reports.filter(r=>r.status==='resolved').length*3+10)},
+  ];
+  document.getElementById('mob-risk-bars').innerHTML = zones.map(z=>`
+    <div class="risk-item">
+      <div class="risk-top"><span style="font-size:12px">${z.name}</span><span class="risk-pct" style="color:${riskColors(z.score)}">${riskLabel(z.score)}</span></div>
+      <div class="risk-bar"><div class="risk-fill" style="width:${z.score}%;background:${riskColors(z.score)}"></div></div>
+    </div>`).join('');
+}
+
+function renderMobileAdmin() {
+  const open = reports.filter(r=>r.status==='open');
+  const res = reports.filter(r=>r.status==='resolved');
+  document.getElementById('m-adm-total').textContent = reports.length;
+  document.getElementById('m-adm-open').textContent = open.length;
+  document.getElementById('m-adm-high').textContent = reports.filter(r=>r.sev==='high'&&r.status==='open').length;
+  document.getElementById('m-adm-res').textContent = res.length;
+  const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding',other:'Other'};
+  document.getElementById('mob-admin-list').innerHTML = reports.sort((a,b)=>b.date-a.date).map(r=>`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:600">${tNames[r.type]||r.type}</div>
+        <span class="rep-badge rb-${r.sev}" style="font-size:9.5px;padding:2px 8px;border-radius:99px;font-family:var(--mono);font-weight:600">${r.sev?.toUpperCase()}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:3px">📍 ${r.loc}</div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">${r.id} · ${timeAgo(r.date)}</div>
+      ${r.status==='open'?`<button onclick="resolveReport('${r.id}');renderMobileAdmin()" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer">✅ Mark as Resolved</button>`:`<span style="font-size:11px;color:var(--blue);font-family:var(--mono)">✅ RESOLVED</span>`}
+    </div>`).join('');
+}
+
+function mobFlyTo(lat, lng) {
+  if (!lat||!lng) return;
+  initMobileMap();
+  mobTab(document.getElementById('mobt-map'), 'map');
+  setTimeout(()=>{ mobMap.flyTo([lat,lng],17,{duration:1}); mobMap.invalidateSize(); },200);
+}
+
+// Override refresh to also update mobile KPIs and badge
+const _origRefresh = refresh;
+// Extend refresh to update mobile elements too
+function refresh() {
+  updateKPIs(); renderRightCol(); renderAdminTable(); rebuildMarkers();
+  // Mobile KPIs
+  const open = reports.filter(r=>r.status==='open');
+  const dumps = open.filter(r=>r.type==='dump');
+  const blocks = open.filter(r=>r.type==='block');
+  const res = reports.filter(r=>r.status==='resolved');
+  const newR = open.filter(r=>Date.now()-r.date<86400000);
+  const setT = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  setT('m-kpi-dump', dumps.length);
+  setT('m-kpi-block', blocks.length);
+  setT('m-kpi-res', res.length);
+  setT('m-kpi-new', newR.length);
+  // Badge on reports tab
+  const badge = document.getElementById('mobBadge');
+  if (badge) { badge.textContent = open.length; badge.classList.toggle('show', open.length>0); }
+  // Re-render active mobile panel
+  if (mobCurrentTab==='reports') renderMobileReports();
+  if (mobCurrentTab==='stats') renderMobileStats();
+  if (mobCurrentTab==='admin') renderMobileAdmin();
+  if (mobCurrentTab==='map') rebuildMobileMarkers();
+}
+
+// ── RESPONSIVE: show/hide mobile vs desktop ──
+function applyLayout() {
+  const isMobile = window.innerWidth < 768;
+  document.getElementById('mobileTabbar').style.display = isMobile ? 'block' : 'none';
+  document.querySelectorAll('.mob-panel').forEach(p => {
+    p.style.display = isMobile ? '' : 'none';
+  });
+  document.querySelector('.shell').style.display = isMobile ? 'none' : 'grid';
+  if (isMobile && mobCurrentTab==='map') {
+    initMobileMap();
+    setTimeout(()=> mobMap && mobMap.invalidateSize(), 200);
+  }
+}
+window.addEventListener('resize', applyLayout);
+applyLayout();
+
+// On mobile, also init map when first switching to map tab
+if (window.innerWidth < 768) {
+  initMobileMap();
+}
 </script>
+
+<style>
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 767px) {
+  html, body { overflow: auto; }
+
+  /* Show mobile bar, hide desktop shell */
+  .mobile-tabbar { display: block !important; }
+  .shell { display: none !important; }
+  .mob-panel { display: none; }
+  .mob-panel.active { display: block !important; }
+
+  /* Login screen still works on mobile */
+  .login-screen { padding: 16px; }
+  .login-box { padding: 28px 22px; }
+  .login-title { font-size: 18px; }
+
+  /* Rep cards look good on mobile */
+  .rep-card { font-size: 13px; }
+}
+
+@media (min-width: 768px) {
+  .mobile-tabbar { display: none !important; }
+  .mob-panel { display: none !important; }
+  .shell { display: grid !important; }
+}
+</style>
 </body>
 </html>

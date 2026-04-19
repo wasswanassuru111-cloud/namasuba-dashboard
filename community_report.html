@@ -5,6 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Report an Issue – Namasuba–Lufuka</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQnuWNtgPPRnxTgne8xxm7LNzQYvsfRcg",
+    authDomain: "lufuka-dashboard.firebaseapp.com",
+    projectId: "lufuka-dashboard",
+    storageBucket: "lufuka-dashboard.firebasestorage.app",
+    messagingSenderId: "658485725632",
+    appId: "1:658485725632:web:f0cbe775bff9ccea8ee025"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window._db = db;
+  window._fbCollection = collection;
+  window._fbAddDoc = addDoc;
+  window._fbReady = true;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
 <style>
 :root {
   --green: #1a6b3a;
@@ -536,16 +559,23 @@ function buildReview() {
   document.getElementById('rv-contact').textContent = contact || 'Not provided';
 }
 
-// ── SUBMIT ──
-const STORE_KEY = 'namasuba_reports_v3';
-
+// ── FIREBASE SUBMIT ──
 async function submitReport() {
+  const loc = document.getElementById('locInput').value.trim();
+  if (!selSev) { alert('Please select a severity level.'); return; }
+  if (!loc) { alert('Please enter a landmark or street name.'); return; }
+
+  // Show loading state
+  const btn = document.querySelector('#page5 .btn-next');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳ Submitting...'; btn.disabled = true; }
+
   const id = 'RPT-' + Math.random().toString(36).substr(2,6).toUpperCase();
   const report = {
     id,
     type: selType,
     sev: selSev,
-    loc: document.getElementById('locInput').value,
+    loc,
     lat: coords ? coords.lat : null,
     lng: coords ? coords.lng : null,
     desc: document.getElementById('descInput').value,
@@ -554,24 +584,25 @@ async function submitReport() {
     status: 'open',
   };
 
-  // Save to shared storage
   try {
-    let existing = [];
-    try {
-      const res = await window.storage.get(STORE_KEY, true);
-      if (res) existing = JSON.parse(res.value);
-    } catch {}
-    existing.unshift(report);
-    await window.storage.set(STORE_KEY, JSON.stringify(existing), true);
-  } catch(e) { console.warn('Storage error', e); }
+    if (!window._fbReady) {
+      await new Promise(res => window.addEventListener('firebase-ready', res, { once: true }));
+    }
+    await window._fbAddDoc(window._fbCollection(window._db, 'reports'), report);
 
-  // Show success
-  document.getElementById('page5').classList.remove('active');
-  document.getElementById('stepBar').style.display = 'none';
-  document.getElementById('footerEl').style.display = 'none';
-  document.getElementById('successRef').textContent = 'Reference: ' + id;
-  document.getElementById('successPage').classList.add('show');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Show success screen
+    document.getElementById('page5').classList.remove('active');
+    document.getElementById('stepBar').style.display = 'none';
+    document.getElementById('footerEl').style.display = 'none';
+    document.getElementById('successRef').textContent = 'Reference: ' + id;
+    document.getElementById('successPage').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  } catch(e) {
+    console.error('Firebase error:', e);
+    alert('Could not submit. Please check your internet connection and try again.');
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
 }
 
 // ── RESET ──
