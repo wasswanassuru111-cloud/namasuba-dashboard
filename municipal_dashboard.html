@@ -346,6 +346,61 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
 .photo-modal-bg.open { display:flex; }
 .photo-modal-img { max-width:90vw; max-height:85vh; border-radius:12px; box-shadow:0 8px 40px rgba(0,0,0,.6); }
 .photo-modal-close { position:absolute; top:16px; right:20px; font-size:28px; color:#fff; cursor:pointer; line-height:1; }
+
+/* ── ASSIGNMENT MODAL ── */
+.assign-modal-bg {
+  display:none; position:fixed; inset:0;
+  background:rgba(26,46,26,.55); z-index:8000;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.assign-modal-bg.open { display:flex; }
+.assign-modal {
+  background:var(--surface); border:1.5px solid var(--border);
+  border-radius:16px; padding:28px; width:90%; max-width:420px;
+  box-shadow:var(--shadow-md); animation:slideUp .25s ease;
+}
+.am-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+.am-ref { font-size:11px; color:var(--muted); font-family:var(--mono); margin-bottom:18px; }
+.am-label { font-size:11px; font-weight:700; color:var(--text2); margin-bottom:6px; display:block; font-family:var(--mono); letter-spacing:.5px; }
+.am-select, .am-note {
+  width:100%; padding:10px 13px;
+  background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:8px; color:var(--text); font-family:var(--font);
+  font-size:13px; outline:none; transition:border-color .18s; margin-bottom:14px;
+}
+.am-select:focus, .am-note:focus { border-color:var(--accent); }
+.am-note { min-height:70px; resize:vertical; }
+.am-priority { display:flex; gap:8px; margin-bottom:18px; }
+.am-pri-opt {
+  flex:1; padding:9px 6px; border:1.5px solid var(--border);
+  border-radius:8px; text-align:center; cursor:pointer;
+  font-size:12px; font-weight:700; transition:all .15s;
+  background:var(--surface2);
+}
+.am-pri-opt.sel-high { border-color:var(--warn); background:var(--warn-light); color:var(--warn); }
+.am-pri-opt.sel-med { border-color:var(--orange); background:var(--orange-light); color:var(--orange); }
+.am-pri-opt.sel-low { border-color:var(--accent-mid); background:var(--accent-light); color:var(--accent); }
+.am-btns { display:flex; gap:8px; }
+.am-cancel {
+  flex:1; padding:11px; background:transparent;
+  border:1.5px solid var(--border); border-radius:8px;
+  font-family:var(--font); font-size:13px; font-weight:600;
+  color:var(--muted); cursor:pointer; transition:all .15s;
+}
+.am-cancel:hover { border-color:var(--warn); color:var(--warn); }
+.am-confirm {
+  flex:2; padding:11px; background:var(--accent);
+  border:none; border-radius:8px;
+  font-family:var(--font); font-size:13px; font-weight:700;
+  color:#fff; cursor:pointer; transition:all .15s;
+}
+.am-confirm:hover { background:#155c2e; }
+.assigned-tag {
+  font-size:10px; padding:2px 8px; border-radius:99px;
+  background:var(--blue-light); color:var(--blue);
+  font-family:var(--mono); font-weight:600; margin-left:4px;
+}
 .rep-actions { display: flex; gap: 5px; margin-top: 8px; }
 .rep-act { flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-family: var(--font); font-size: 10.5px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); }
 .rep-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
@@ -542,7 +597,7 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
         </div>
         <div style="overflow-x:auto">
           <table class="admin-table"><thead><tr>
-            <th>Ref</th><th>Type</th><th>Location</th><th>Severity</th><th>Status</th><th>Reported</th><th>Actions</th>
+            <th>Ref</th><th>Type</th><th>Location</th><th>Severity</th><th>Assigned To</th><th>Status</th><th>Reported</th><th>Actions</th>
           </tr></thead><tbody id="admTbody"></tbody></table>
         </div>
       </div>
@@ -554,6 +609,39 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
 <div class="photo-modal-bg" id="photoModal" onclick="closePhotoModal()">
   <span class="photo-modal-close">&times;</span>
   <img class="photo-modal-img" id="photoModalImg" src="" alt="Report photo">
+</div>
+
+<!-- ASSIGNMENT MODAL -->
+<div class="assign-modal-bg" id="assignModal">
+  <div class="assign-modal">
+    <div class="am-title">👤 Assign Report to Field Team</div>
+    <div class="am-ref" id="amRef"></div>
+
+    <label class="am-label">ASSIGN TO</label>
+    <select class="am-select" id="amTeam">
+      <option value="">Select a team or officer...</option>
+      <option value="Team A – Namasuba Zone">Team A – Namasuba Zone</option>
+      <option value="Team B – Lufuka Zone">Team B – Lufuka Zone</option>
+      <option value="Team C – Market Area">Team C – Market Area</option>
+      <option value="Team D – Drainage Maintenance">Team D – Drainage Maintenance</option>
+      <option value="Supervisor – Field Coordinator">Supervisor – Field Coordinator</option>
+    </select>
+
+    <label class="am-label">PRIORITY</label>
+    <div class="am-priority">
+      <div class="am-pri-opt" onclick="amPriority(this,'urgent')">🔴 Urgent<br><small style="font-weight:400;font-size:10px">Today</small></div>
+      <div class="am-pri-opt" onclick="amPriority(this,'normal')">🟠 Normal<br><small style="font-weight:400;font-size:10px">This week</small></div>
+      <div class="am-pri-opt" onclick="amPriority(this,'low')">🟢 Scheduled<br><small style="font-weight:400;font-size:10px">Next round</small></div>
+    </div>
+
+    <label class="am-label">NOTES FOR TEAM (OPTIONAL)</label>
+    <textarea class="am-note" id="amNote" placeholder="e.g. Access from the rear gate, bring PPE, large truck needed..."></textarea>
+
+    <div class="am-btns">
+      <button class="am-cancel" onclick="closeAssignModal()">Cancel</button>
+      <button class="am-confirm" onclick="confirmAssign()">✅ Confirm Assignment</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── MOBILE BOTTOM TAB BAR ── -->
@@ -687,19 +775,42 @@ let currentFilter = 'open';
 let admCurrentFilter = 'all';
 let unsubscribeListener = null; // Firebase real-time listener
 
-// Seed data — loaded into Firebase only if collection is empty
+// Seed data — real field survey points, Namasuba-Lufuka
 const seedReports = [
-  { id:'RPT-SEED01', type:'dump', sev:'high', loc:'Namasuba Market Rear Access Road', lat:0.2600, lng:32.5520, desc:'Large accumulation of mixed solid waste blocking pedestrian path and spilling into adjacent open drain.', date:Date.now()-7200000, status:'open', contact:'' },
-  { id:'RPT-SEED02', type:'block', sev:'high', loc:'Drainage Channel CH-07, near Lufuka Junction', lat:0.2625, lng:32.5532, desc:'Drain completely blocked by waste. Water overflow onto road during last rainfall.', date:Date.now()-18000000, status:'open', contact:'' },
-  { id:'RPT-SEED03', type:'dump', sev:'med', loc:'Namasuba Rd, opposite Primary School', lat:0.2583, lng:32.5501, desc:'Moderate dump site, mixed plastics and organic waste. Present ~2 weeks.', date:Date.now()-86400000, status:'open', contact:'' },
-  { id:'RPT-SEED04', type:'block', sev:'high', loc:'Market Street Drain CH-12', lat:0.2598, lng:32.5558, desc:'Partial blockage with solid waste. Flooding risk during rainy season.', date:Date.now()-10800000, status:'open', contact:'' },
-  { id:'RPT-SEED05', type:'dump', sev:'low', loc:'Open Ground – Section 4, Lufuka', lat:0.2612, lng:32.5591, desc:'Small informal dump. Recently started.', date:Date.now()-172800000, status:'open', contact:'' },
-  { id:'RPT-SEED06', type:'block', sev:'med', loc:'Residential Zone Drain CH-03', lat:0.2646, lng:32.5512, desc:'50% blockage. Vegetation and plastic waste mixed.', date:Date.now()-259200000, status:'resolved', contact:'' },
-  { id:'RPT-SEED07', type:'dump', sev:'high', loc:'Zone A – Near Health Centre', lat:0.2638, lng:32.5548, desc:'High-risk site adjacent to footpath used to access health centre.', date:Date.now()-3600000, status:'open', contact:'' },
+  { id:'RPT-F002', type:'block', sev:'high', loc:'Blocked drainage channel – CH02', lat:0.262976, lng:32.566465, desc:'Drainage channel blocked by solid waste. Overflow observed during rain.', date:Date.now()-3600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F004', type:'dump', sev:'high', loc:'Roadside dump near junction', lat:0.263242, lng:32.566504, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-7200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F005', type:'dump', sev:'med', loc:'Open waste pile along access path', lat:0.263039, lng:32.566191, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-10800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F006', type:'dump', sev:'high', loc:'Uncontrolled dump site', lat:0.262485, lng:32.566106, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-14400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F008', type:'block', sev:'high', loc:'Blocked drain – CH08', lat:0.262889, lng:32.566169, desc:'Partial to full blockage. Waste and vegetation mix. Upstream flooding risk.', date:Date.now()-18000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F011', type:'block', sev:'med', loc:'Partial blockage – CH11', lat:0.262796, lng:32.566417, desc:'Channel capacity reduced. Requires urgent clearance.', date:Date.now()-21600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F015', type:'block', sev:'high', loc:'Drain blockage – CH15', lat:0.261782, lng:32.56591, desc:'Drainage channel blocked by solid waste. Overflow observed during rain.', date:Date.now()-25200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F016', type:'dump', sev:'med', loc:'Waste accumulation near residences', lat:0.261609, lng:32.565917, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-28800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F018', type:'dump', sev:'low', loc:'Roadside illegal dumping', lat:0.262468, lng:32.566371, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-32400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F022', type:'block', sev:'med', loc:'Blocked channel – CH28', lat:0.262387, lng:32.566355, desc:'Partial to full blockage. Waste and vegetation mix. Upstream flooding risk.', date:Date.now()-36000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F023', type:'dump', sev:'med', loc:'Large waste pile near structure', lat:0.263156, lng:32.566043, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-39600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F028', type:'block', sev:'high', loc:'Blocked drain – CH29', lat:0.261613, lng:32.566186, desc:'Channel capacity reduced. Requires urgent clearance.', date:Date.now()-43200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F029', type:'block', sev:'med', loc:'Partially blocked – CH30', lat:0.262138, lng:32.566301, desc:'Drainage channel blocked by solid waste. Overflow observed during rain.', date:Date.now()-46800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F030', type:'block', sev:'high', loc:'Drain blockage – CH31', lat:0.260413, lng:32.565972, desc:'Partial to full blockage. Waste and vegetation mix. Upstream flooding risk.', date:Date.now()-50400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F031', type:'block', sev:'high', loc:'Blocked channel – CH22', lat:0.261062, lng:32.566097, desc:'Channel capacity reduced. Requires urgent clearance.', date:Date.now()-54000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F032', type:'dump', sev:'med', loc:'Mixed waste dump along road', lat:0.261089, lng:32.565812, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-57600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F033', type:'dump', sev:'med', loc:'Organic and plastic waste pile', lat:0.26124, lng:32.565848, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-61200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F035', type:'dump', sev:'low', loc:'Waste beside drainage channel', lat:0.260884, lng:32.565777, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-64800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F037', type:'dump', sev:'high', loc:'Dump site near open ground', lat:0.260617, lng:32.568071, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-68400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F038', type:'dump', sev:'low', loc:'Roadside dumping – south zone', lat:0.260111, lng:32.567795, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-72000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F041', type:'dump', sev:'high', loc:'Large mixed waste accumulation', lat:0.260111, lng:32.568098, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-75600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F042', type:'dump', sev:'low', loc:'Waste pile near footpath', lat:0.261169, lng:32.567893, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-79200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F044', type:'dump', sev:'low', loc:'Dump adjacent to drain', lat:0.261533, lng:32.567769, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-82800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F045', type:'dump', sev:'low', loc:'Open dumping – eastern section', lat:0.261551, lng:32.567626, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-86400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F046', type:'dump', sev:'high', loc:'Roadside waste – zone B', lat:0.260591, lng:32.568222, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-90000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F047', type:'dump', sev:'low', loc:'Uncontrolled dump near market', lat:0.260111, lng:32.567555, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-93600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F048', type:'dump', sev:'low', loc:'Waste pile along access road', lat:0.261827, lng:32.567662, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-97200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F049', type:'dump', sev:'low', loc:'Mixed refuse dump site', lat:0.261498, lng:32.567626, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-100800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F050', type:'dump', sev:'low', loc:'Illegal dump – residential fringe', lat:0.262445, lng:32.567496, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-104400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F054', type:'dump', sev:'low', loc:'Large waste accumulation – field verified', lat:0.262726, lng:32.567434, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-108000000, status:'open', contact:'', photos:[] }
 ];
 
 // ── MAP ──
-const map = L.map('map', { zoomControl: false }).setView([0.262, 32.554], 14);
+const map = L.map('map', { zoomControl: false }).setView([0.261719, 32.56679], 15);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
 const basemaps = {
@@ -709,12 +820,8 @@ const basemaps = {
 };
 basemaps.street.addTo(map);
 
-const drainageLines = [
-  [[0.2575,32.5488],[0.2592,32.5508],[0.2608,32.5522],[0.2625,32.5533],[0.2645,32.5550],[0.2660,32.5570]],
-  [[0.2588,32.5545],[0.2605,32.5552],[0.2628,32.5556]],
-  [[0.2598,32.5508],[0.2614,32.5498],[0.2636,32.5492]],
-  [[0.2648,32.5528],[0.2651,32.5545],[0.2655,32.5558]],
-];
+// Drainage network lines — add your digitised polylines here from QGIS GeoJSON export
+const drainageLines = [];
 const channelLayer = L.layerGroup();
 drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(channelLayer));
 channelLayer.addTo(map);
@@ -823,9 +930,11 @@ function renderRightCol() {
       <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
       <div class="rep-loc">📍 ${r.loc}</div>
       <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${r.assignedTo ? `<div style="margin-top:5px;font-size:11px"><span class="assigned-tag">👤 ${r.assignedTo}</span>${r.assignPriority ? `<span style="font-size:10px;color:var(--muted);margin-left:6px">${r.assignPriority==='urgent'?'🔴 Urgent':r.assignPriority==='normal'?'🟠 Normal':'🟢 Scheduled'}</span>` : ''}</div>` : ''}
+      ${r.assignNote ? `<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-style:italic">"${r.assignNote}"</div>` : ''}
       ${photoStrip}
       ${r.status==='open'?`<div class="rep-actions">
-        <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">👤 Assign</button>
+        <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
       </div>`:''}
     </div>`;
@@ -846,6 +955,7 @@ function renderAdminTable() {
       <td>${tNames[r.type]||r.type}</td>
       <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.loc}">${r.loc}</td>
       <td><span class="tbl-badge" style="${sevStyle[r.sev]||''}">${r.sev?.toUpperCase()}</span></td>
+      <td style="font-size:11.5px">${r.assignedTo ? `<span class="assigned-tag">👤 ${r.assignedTo.split('–')[0].trim()}</span>` : '<span style="color:var(--muted)">Unassigned</span>'}</td>
       <td><span class="tbl-badge" style="${r.status==='resolved'?'background:var(--blue-light);color:var(--blue)':'background:var(--warn-light);color:var(--warn)'}">${r.status.toUpperCase()}</span></td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.date)}</td>
       <td>${r.lat?`<button class="tbl-act" onclick="flyAndSwitch(${r.lat},${r.lng})">🗺 View</button>`:''}
@@ -897,8 +1007,69 @@ async function resolveReport(id) {
     // Real-time listener will auto-refresh the UI
   } catch(e) { console.error('Resolve error:', e); alert('Could not resolve report. Check your connection.'); }
 }
+// ── ASSIGNMENT LOGIC ──
+let assignTargetId = null;
+let assignPriority = null;
+
 function assignReport(id) {
-  alert(`Report ${id} flagged for field team assignment.\n\nIn a live deployment this would send an SMS to the designated waste collection crew.`);
+  assignTargetId = id;
+  assignPriority = null;
+  const r = reports.find(r => r.id === id);
+  document.getElementById('amRef').textContent = id + (r ? ' · ' + r.loc : '');
+  document.getElementById('amTeam').value = r?.assignedTo || '';
+  document.getElementById('amNote').value = r?.assignNote || '';
+  // Reset priority buttons
+  document.querySelectorAll('.am-pri-opt').forEach(b => b.classList.remove('sel-urgent','sel-normal','sel-low','sel-high','sel-med'));
+  if (r?.assignPriority) amPriority(
+    document.querySelector(`.am-pri-opt[onclick*="${r.assignPriority}"]`), r.assignPriority
+  );
+  document.getElementById('assignModal').classList.add('open');
+}
+
+function amPriority(el, val) {
+  document.querySelectorAll('.am-pri-opt').forEach(b =>
+    b.classList.remove('sel-high','sel-med','sel-low','sel-urgent','sel-normal')
+  );
+  if (!el) return;
+  const cls = val === 'urgent' ? 'sel-high' : val === 'normal' ? 'sel-med' : 'sel-low';
+  el.classList.add(cls);
+  assignPriority = val;
+}
+
+function closeAssignModal() {
+  document.getElementById('assignModal').classList.remove('open');
+  assignTargetId = null;
+  assignPriority = null;
+}
+
+async function confirmAssign() {
+  const team = document.getElementById('amTeam').value;
+  if (!team) { alert('Please select a team or officer.'); return; }
+  if (!assignPriority) { alert('Please select a priority level.'); return; }
+
+  const note = document.getElementById('amNote').value.trim();
+  const r = reports.find(r => r.id === assignTargetId);
+  if (!r || !r._docId) return;
+
+  const btn = document.querySelector('.am-confirm');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    await window._fbUpdateDoc(window._fbDoc(window._db, 'reports', r._docId), {
+      assignedTo: team,
+      assignPriority: assignPriority,
+      assignNote: note,
+      assignedAt: Date.now(),
+      assignedBy: 'Council Officer',
+    });
+    closeAssignModal();
+    // Real-time listener will refresh automatically
+  } catch(e) {
+    console.error('Assign error:', e);
+    alert('Could not save assignment. Check your connection.');
+  } finally {
+    btn.textContent = '✅ Confirm Assignment'; btn.disabled = false;
+  }
 }
 function flyTo(lat, lng) {
   if (!lat||!lng) return;
@@ -950,7 +1121,7 @@ let mobMapInitialized = false;
 function initMobileMap() {
   if (mobMapInitialized) return;
   mobMapInitialized = true;
-  mobMap = L.map('mob-map', { zoomControl: true }).setView([0.262, 32.554], 14);
+  mobMap = L.map('mob-map', { zoomControl: true }).setView([0.261719, 32.56679], 15);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(mobMap);
   drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(mobMap));
   rebuildMobileMarkers();
@@ -1015,8 +1186,10 @@ function renderMobileReports() {
       <div class="rep-loc">📍 ${r.loc}</div>
       <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
       ${mobPhotoStrip}
+      ${r.assignedTo ? `<div style="margin-top:5px;font-size:11px"><span class="assigned-tag">👤 ${r.assignedTo}</span></div>` : ''}
+      ${mobPhotoStrip}
       ${r.status==='open'?`<div class="rep-actions">
-        <button class="rep-act" onclick="event.stopPropagation();mobFlyTo(${r.lat},${r.lng})">🗺 View on Map</button>
+        <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}');renderMobileReports()">✅ Resolve</button>
       </div>`:''}
     </div>`;
