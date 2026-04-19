@@ -339,6 +339,13 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
 .rb-resolved { background: var(--blue-light); color: var(--blue); }
 .rep-loc { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
 .rep-meta { font-size: 10px; color: var(--muted); font-family: var(--mono); display: flex; gap: 8px; }
+.rep-photos { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.rep-photo { width: 64px; height: 48px; border-radius: 6px; object-fit: cover; border: 1.5px solid var(--border); cursor: pointer; transition: transform .15s; }
+.rep-photo:hover { transform: scale(1.05); }
+.photo-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:9999; align-items:center; justify-content:center; }
+.photo-modal-bg.open { display:flex; }
+.photo-modal-img { max-width:90vw; max-height:85vh; border-radius:12px; box-shadow:0 8px 40px rgba(0,0,0,.6); }
+.photo-modal-close { position:absolute; top:16px; right:20px; font-size:28px; color:#fff; cursor:pointer; line-height:1; }
 .rep-actions { display: flex; gap: 5px; margin-top: 8px; }
 .rep-act { flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-family: var(--font); font-size: 10.5px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); }
 .rep-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
@@ -543,6 +550,12 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
   </div>
 </div>
 
+<!-- PHOTO LIGHTBOX MODAL -->
+<div class="photo-modal-bg" id="photoModal" onclick="closePhotoModal()">
+  <span class="photo-modal-close">&times;</span>
+  <img class="photo-modal-img" id="photoModalImg" src="" alt="Report photo">
+</div>
+
 <!-- ── MOBILE BOTTOM TAB BAR ── -->
 <div class="mobile-tabbar" id="mobileTabbar">
   <div class="mobile-tabbar-inner">
@@ -727,7 +740,7 @@ function rebuildMarkers() {
     const iconType = r.status==='resolved' ? 'resolved' : r.type;
     const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
     const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
-    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&r.status==='open'?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>`, {maxWidth:260});
+    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&r.status==='open'?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>${r.photos&&r.photos[0]?`<div style="margin-top:8px"><img src="${r.photos[0]}" onclick="openPhoto('${r.photos[0]}')" style="width:100%;border-radius:7px;cursor:pointer;max-height:120px;object-fit:cover" title="Click to enlarge"></div>`:''}`, {maxWidth:280});
     m.addTo(tgt);
     if (r.status!=='resolved') heatPts.push([r.lat, r.lng, r.sev==='high'?1:r.sev==='med'?.6:.3]);
   });
@@ -803,10 +816,14 @@ function renderRightCol() {
   document.getElementById('rcBody').innerHTML = list.map(r => {
     const isNew = Date.now()-r.date<86400000&&r.status==='open';
     const badge = r.status==='resolved' ? '<span class="rep-badge rb-resolved">RESOLVED</span>' : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    const photoStrip = (r.photos && r.photos.length > 0)
+      ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')" title="View photo">`).join('')}</div>`
+      : '';
     return `<div class="rep-card sev-${r.sev}" onclick="flyTo(${r.lat},${r.lng})">
       <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
       <div class="rep-loc">📍 ${r.loc}</div>
       <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${photoStrip}
       ${r.status==='open'?`<div class="rep-actions">
         <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">👤 Assign</button>
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
@@ -914,6 +931,15 @@ function exportCSV() {
   a.click();
 }
 
+// ── PHOTO LIGHTBOX ──
+function openPhoto(url) {
+  document.getElementById('photoModalImg').src = url;
+  document.getElementById('photoModal').classList.add('open');
+}
+function closePhotoModal() {
+  document.getElementById('photoModal').classList.remove('open');
+}
+
 // Auto-load if already authenticated
 if (sessionStorage.getItem('msc_auth')==='1') loadReports();
 
@@ -981,10 +1007,14 @@ function renderMobileReports() {
   document.getElementById('mob-rep-list').innerHTML = list.map(r => {
     const isNew = Date.now()-r.date<86400000&&r.status==='open';
     const badge = r.status==='resolved' ? '<span class="rep-badge rb-resolved">RESOLVED</span>' : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    const mobPhotoStrip = (r.photos && r.photos.length > 0)
+      ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')">`).join('')}</div>`
+      : '';
     return `<div class="rep-card sev-${r.sev}" onclick="mobFlyTo(${r.lat},${r.lng})" style="margin-bottom:8px">
       <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
       <div class="rep-loc">📍 ${r.loc}</div>
       <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${mobPhotoStrip}
       ${r.status==='open'?`<div class="rep-actions">
         <button class="rep-act" onclick="event.stopPropagation();mobFlyTo(${r.lat},${r.lng})">🗺 View on Map</button>
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}');renderMobileReports()">✅ Resolve</button>

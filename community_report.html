@@ -533,17 +533,33 @@ function checkLocPage() {
 }
 
 // ── PHOTOS ──
+const IMGBB_KEY = 'e3d4477670cfb93f614f6e7ede08ca5c';
+let selectedFiles = [];
+
 function handlePhotos(evt) {
   const row = document.getElementById('photoRow');
   row.innerHTML = '';
   photoCount = 0;
-  Array.from(evt.target.files).slice(0, 3).forEach(f => {
+  selectedFiles = Array.from(evt.target.files).slice(0, 3);
+  selectedFiles.forEach(f => {
     const img = document.createElement('img');
     img.src = URL.createObjectURL(f);
     img.className = 'prev-thumb';
     row.appendChild(img);
     photoCount++;
   });
+}
+
+// Upload one image to ImgBB, returns permanent display URL
+async function uploadToImgBB(file) {
+  const fd = new FormData();
+  fd.append('image', file);
+  const res = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, {
+    method: 'POST', body: fd
+  });
+  const data = await res.json();
+  if (data.success) return data.data.display_url;
+  throw new Error('ImgBB upload failed');
 }
 
 // ── REVIEW ──
@@ -559,38 +575,49 @@ function buildReview() {
   document.getElementById('rv-contact').textContent = contact || 'Not provided';
 }
 
-// ── FIREBASE SUBMIT ──
+// ── SUBMIT WITH IMGBB PHOTO UPLOAD + FIREBASE ──
 async function submitReport() {
   const loc = document.getElementById('locInput').value.trim();
   if (!selSev) { alert('Please select a severity level.'); return; }
   if (!loc) { alert('Please enter a landmark or street name.'); return; }
 
-  // Show loading state
   const btn = document.querySelector('#page5 .btn-next');
   const orig = btn ? btn.textContent : '';
-  if (btn) { btn.textContent = '⏳ Submitting...'; btn.disabled = true; }
-
-  const id = 'RPT-' + Math.random().toString(36).substr(2,6).toUpperCase();
-  const report = {
-    id,
-    type: selType,
-    sev: selSev,
-    loc,
-    lat: coords ? coords.lat : null,
-    lng: coords ? coords.lng : null,
-    desc: document.getElementById('descInput').value,
-    contact: document.getElementById('contactInput').value,
-    date: Date.now(),
-    status: 'open',
-  };
 
   try {
+    // Step 1: Upload photos to ImgBB
+    let photoUrls = [];
+    if (selectedFiles.length > 0) {
+      if (btn) { btn.textContent = '⏳ Uploading photos (' + selectedFiles.length + ')...'; btn.disabled = true; }
+      for (const file of selectedFiles) {
+        const url = await uploadToImgBB(file);
+        photoUrls.push(url);
+      }
+    }
+
+    // Step 2: Save report + photo URLs to Firestore
+    if (btn) { btn.textContent = '⏳ Saving report...'; btn.disabled = true; }
+    const id = 'RPT-' + Math.random().toString(36).substr(2,6).toUpperCase();
+    const report = {
+      id,
+      type: selType,
+      sev: selSev,
+      loc,
+      lat: coords ? coords.lat : null,
+      lng: coords ? coords.lng : null,
+      desc: document.getElementById('descInput').value,
+      contact: document.getElementById('contactInput').value,
+      date: Date.now(),
+      status: 'open',
+      photos: photoUrls,   // array of ImgBB URLs
+    };
+
     if (!window._fbReady) {
       await new Promise(res => window.addEventListener('firebase-ready', res, { once: true }));
     }
     await window._fbAddDoc(window._fbCollection(window._db, 'reports'), report);
 
-    // Show success screen
+    // Step 3: Show success screen
     document.getElementById('page5').classList.remove('active');
     document.getElementById('stepBar').style.display = 'none';
     document.getElementById('footerEl').style.display = 'none';
@@ -599,8 +626,8 @@ async function submitReport() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
   } catch(e) {
-    console.error('Firebase error:', e);
-    alert('Could not submit. Please check your internet connection and try again.');
+    console.error('Submit error:', e);
+    alert('Could not submit. Check your internet connection and try again.');
     if (btn) { btn.textContent = orig; btn.disabled = false; }
   }
 }
