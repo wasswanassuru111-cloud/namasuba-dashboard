@@ -11,7 +11,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCQnuWNtgPPRnxTgne8xxm7LNzQYvsfRcg",
@@ -32,6 +32,7 @@
   window._fbGetDocs = getDocs;
   window._fbDoc = doc;
   window._fbUpdateDoc = updateDoc;
+  window._fbDeleteDoc = deleteDoc;
   window._fbOnSnapshot = onSnapshot;
   window._fbQuery = query;
   window._fbOrderBy = orderBy;
@@ -401,6 +402,24 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
   background:var(--blue-light); color:var(--blue);
   font-family:var(--mono); font-weight:600; margin-left:4px;
 }
+.rb-progress { background:#fff3e0; color:#e65100; }
+.progress-bar-wrap { height:3px; background:var(--border); border-radius:2px; margin-top:6px; overflow:hidden; }
+.progress-bar-fill { height:100%; border-radius:2px; background:var(--orange); animation:progressPulse 1.5s ease-in-out infinite; }
+@keyframes progressPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* DATE FILTER */
+.date-filter-wrap { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.date-filter-label { font-size:10.5px; font-weight:700; color:var(--muted); font-family:var(--mono); white-space:nowrap; }
+.date-input { padding:6px 10px; background:var(--surface2); border:1.5px solid var(--border); border-radius:7px; font-family:var(--font); font-size:11.5px; color:var(--text); outline:none; transition:border-color .18s; }
+.date-input:focus { border-color:var(--accent); }
+.date-clear { padding:6px 10px; background:transparent; border:1.5px solid var(--border); border-radius:7px; font-family:var(--font); font-size:11.5px; color:var(--muted); cursor:pointer; transition:all .15s; }
+.date-clear:hover { border-color:var(--warn); color:var(--warn); }
+
+/* RESOLUTION RECORD */
+.res-record { background:var(--accent-light); border:1.5px solid var(--green-border,#b0d9c0); border-radius:10px; padding:12px 14px; margin:12px 36px; font-size:12px; }
+.res-record-title { font-weight:700; color:var(--accent); margin-bottom:6px; font-size:13px; }
+.res-record-row { display:flex; gap:8px; margin-bottom:3px; color:var(--text2); }
+.res-record-label { color:var(--muted); min-width:80px; font-family:var(--mono); font-size:11px; }
 .rep-actions { display: flex; gap: 5px; margin-top: 8px; }
 .rep-act { flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-family: var(--font); font-size: 10.5px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); }
 .rep-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
@@ -487,6 +506,7 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
     <nav class="nav-tabs">
       <button class="nav-tab active" onclick="switchView('dashboard',this)">🗺️ Map Dashboard</button>
       <button class="nav-tab" onclick="switchView('admin',this)">⚙️ Manage Reports</button>
+      <button class="nav-tab" onclick="switchView('reslog',this)">📋 Resolution Log</button>
     </nav>
     <div class="topbar-right">
       <div class="live-pill"><div class="live-dot"></div><span id="liveCount">Connecting...</span></div>
@@ -524,10 +544,7 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
           <div class="layer-left"><span class="layer-dot" style="background:rgba(192,57,43,.35)"></span>Hotspot Heatmap</div>
           <div class="sw on" onclick="toggleLayer(this,'heat')"></div>
         </div>
-        <div class="layer-row" style="border-bottom:none">
-          <div class="layer-left"><span class="layer-dot" style="background:#1a6b3a"></span>Resolved Reports</div>
-          <div class="sw" onclick="toggleLayer(this,'resolved')"></div>
-        </div>
+
       </div>
       <div class="sb-section">
         <div class="sb-label">Flood Risk by Zone</div>
@@ -558,14 +575,14 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
         <div class="legend-item"><div class="legend-sym" style="background:#c0392b"></div>Illegal Dumping</div>
         <div class="legend-item"><div class="legend-sym" style="background:#d4691e"></div>Blocked Drain</div>
         <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div>Drain Network</div>
-        <div class="legend-item"><div class="legend-sym" style="background:#1a6b3a"></div>Resolved</div>
+  
       </div>
     </div>
 
     <aside class="right-col">
       <div class="rc-tabs">
         <div class="rc-tab active" onclick="rcTab(this,'open')">Open <span id="openBadge" style="font-family:var(--mono);font-size:10px;background:var(--warn-light);color:var(--warn);padding:1px 6px;border-radius:4px;margin-left:3px"></span></div>
-        <div class="rc-tab" onclick="rcTab(this,'resolved')">Resolved</div>
+        <div class="rc-tab" onclick="rcTab(this,'all')">All Reports</div>
       </div>
       <div class="rc-body" id="rcBody"></div>
     </aside>
@@ -588,12 +605,19 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
         <div class="as-card"><div class="as-num" id="adm-res" style="color:var(--accent)">—</div><div class="as-lbl">Resolved</div></div>
       </div>
       <div class="admin-table-wrap">
+        <div class="date-filter-wrap">
+          <span class="date-filter-label">DATE RANGE:</span>
+          <input class="date-input" type="date" id="dateFrom" onchange="renderAdminTable()" title="From date">
+          <span style="font-size:12px;color:var(--muted)">to</span>
+          <input class="date-input" type="date" id="dateTo" onchange="renderAdminTable()" title="To date">
+          <button class="date-clear" onclick="clearDateFilter()">✕ Clear</button>
+        </div>
         <div class="admin-toolbar">
           <button class="filter-pill on" onclick="admFilter(this,'all')">All</button>
           <button class="filter-pill" onclick="admFilter(this,'high')">🔴 High</button>
           <button class="filter-pill" onclick="admFilter(this,'med')">🟠 Medium</button>
           <button class="filter-pill" onclick="admFilter(this,'low')">🟢 Low</button>
-          <button class="filter-pill" onclick="admFilter(this,'resolved')">✅ Resolved</button>
+          <button class="filter-pill" onclick="admFilter(this,'progress')">🟠 In Progress</button>
         </div>
         <div style="overflow-x:auto">
           <table class="admin-table"><thead><tr>
@@ -640,6 +664,65 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
     <div class="am-btns">
       <button class="am-cancel" onclick="closeAssignModal()">Cancel</button>
       <button class="am-confirm" onclick="confirmAssign()">✅ Confirm Assignment</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESOLUTION MODAL -->
+<div class="assign-modal-bg" id="resolveModal">
+  <div class="assign-modal">
+    <div class="am-title">✅ Confirm Resolution</div>
+    <div class="am-ref" id="resModalRef"></div>
+
+    <label class="am-label">RESOLVED BY (OFFICER NAME)</label>
+    <input class="am-select" style="height:auto;padding:10px 13px" type="text" id="resOfficer" placeholder="e.g. John Ssekandi – Field Supervisor">
+
+    <label class="am-label">ACTION TAKEN</label>
+    <select class="am-select" id="resAction">
+      <option value="">Select what was done...</option>
+      <option value="Waste cleared and disposed">Waste cleared and disposed</option>
+      <option value="Drain unblocked manually">Drain unblocked manually</option>
+      <option value="Drain unblocked with equipment">Drain unblocked with equipment</option>
+      <option value="Community warned and area cleaned">Community warned and area cleaned</option>
+      <option value="Waste collected and transported to disposal site">Waste collected and transported to disposal site</option>
+      <option value="Temporary barrier installed">Temporary barrier installed</option>
+      <option value="Other action taken">Other action taken</option>
+    </select>
+
+    <label class="am-label">ADDITIONAL NOTES</label>
+    <textarea class="am-note" id="resNotes" placeholder="Any observations, follow-up needed, equipment used, photos taken on ground..."></textarea>
+
+    <div style="background:var(--blue-light);border:1px solid #b8d4eb;border-radius:8px;padding:10px 12px;font-size:12px;color:var(--blue);margin-bottom:14px">
+      📍 <strong>Your GPS location will be recorded</strong> when you confirm — this logs where the officer was when marking the report resolved.
+    </div>
+
+    <div class="am-btns">
+      <button class="am-cancel" onclick="closeResolveModal()">Cancel</button>
+      <button class="am-confirm" onclick="confirmResolve()">✅ Confirm Resolution</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESOLUTION LOG VIEW (admin tab) -->
+<div id="view-reslog" class="main" style="flex-direction:column;overflow-y:auto;background:var(--bg)">
+  <div class="admin-wrap">
+    <div class="admin-hdr">
+      <div>
+        <div class="admin-title">📋 Resolution Log</div>
+        <div class="admin-sub">Full history of resolved reports — where, when, and by whom</div>
+      </div>
+      <button class="export-btn" onclick="exportResLog()">⬇️ Export Log CSV</button>
+    </div>
+    <div class="admin-table-wrap">
+      <div style="overflow-x:auto">
+        <table class="admin-table">
+          <thead><tr>
+            <th>Ref</th><th>Type</th><th>Location</th><th>Reported</th>
+            <th>Resolved</th><th>Resolved By</th><th>Action Taken</th><th>GPS at Resolution</th>
+          </tr></thead>
+          <tbody id="resLogTbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -696,7 +779,7 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
   <div class="mob-reports-wrap">
     <div class="mob-filter-row">
       <button class="mob-pill on" onclick="mobRepFilter(this,'open')">Open</button>
-      <button class="mob-pill" onclick="mobRepFilter(this,'resolved')">Resolved</button>
+
       <button class="mob-pill" onclick="mobRepFilter(this,'high')">🔴 High</button>
       <button class="mob-pill" onclick="mobRepFilter(this,'med')">🟠 Medium</button>
     </div>
@@ -826,8 +909,8 @@ const channelLayer = L.layerGroup();
 drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(channelLayer));
 channelLayer.addTo(map);
 
-const mLayers = { dump: L.layerGroup().addTo(map), block: L.layerGroup().addTo(map), resolved: L.layerGroup(), heat: L.layerGroup().addTo(map) };
-const allLayers = { dump: mLayers.dump, block: mLayers.block, channels: channelLayer, heat: mLayers.heat, resolved: mLayers.resolved };
+const mLayers = { dump: L.layerGroup().addTo(map), block: L.layerGroup().addTo(map), heat: L.layerGroup().addTo(map) };
+const allLayers = { dump: mLayers.dump, block: mLayers.block, channels: channelLayer, heat: mLayers.heat };
 
 function makeIcon(type, sev, isNew) {
   const cols = { dump:{high:'#c0392b',med:'#d4691e',low:'#5dade2'}, block:{high:'#c0392b',med:'#d4691e',low:'#f4d03f'}, flood:{high:'#1a5276',med:'#2e86c1',low:'#5dade2'}, other:{high:'#7d3c98',med:'#9b59b6',low:'#c39bd3'}, resolved:{high:'#1a6b3a',med:'#1a6b3a',low:'#1a6b3a'} };
@@ -843,8 +926,8 @@ function rebuildMarkers() {
   reports.forEach(r => {
     if (!r.lat || !r.lng) return;
     const isNew = Date.now()-r.date < 86400000;
-    const tgt = r.status==='resolved' ? mLayers.resolved : (mLayers[r.type] || mLayers.dump);
-    const iconType = r.status==='resolved' ? 'resolved' : r.type;
+    const tgt = mLayers[r.type] || mLayers.dump;
+    const iconType = r.type;
     const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
     const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
     m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&r.status==='open'?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>${r.photos&&r.photos[0]?`<div style="margin-top:8px"><img src="${r.photos[0]}" onclick="openPhoto('${r.photos[0]}')" style="width:100%;border-radius:7px;cursor:pointer;max-height:120px;object-fit:cover" title="Click to enlarge"></div>`:''}`, {maxWidth:280});
@@ -914,7 +997,10 @@ function updateKPIs() {
 }
 
 function renderRightCol() {
-  const list = (currentFilter==='open' ? reports.filter(r=>r.status==='open') : reports.filter(r=>r.status==='resolved')).sort((a,b)=>b.date-a.date);
+  const list = (currentFilter==='all'
+    ? [...reports]
+    : reports.filter(r=>r.status==='open'||r.status==='progress')
+  ).sort((a,b)=>b.date-a.date);
   const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
   if (!list.length) {
     document.getElementById('rcBody').innerHTML = `<div style="text-align:center;padding:40px 16px;color:var(--muted)"><div style="font-size:32px;margin-bottom:10px">${currentFilter==='open'?'🎉':'📋'}</div><div style="font-size:13px">${currentFilter==='open'?'No open issues!':'No resolved reports yet.'}</div></div>`;
@@ -922,7 +1008,9 @@ function renderRightCol() {
   }
   document.getElementById('rcBody').innerHTML = list.map(r => {
     const isNew = Date.now()-r.date<86400000&&r.status==='open';
-    const badge = r.status==='resolved' ? '<span class="rep-badge rb-resolved">RESOLVED</span>' : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    const badge = r.status==='progress'
+      ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
+      : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
     const photoStrip = (r.photos && r.photos.length > 0)
       ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')" title="View photo">`).join('')}</div>`
       : '';
@@ -932,9 +1020,11 @@ function renderRightCol() {
       <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
       ${r.assignedTo ? `<div style="margin-top:5px;font-size:11px"><span class="assigned-tag">👤 ${r.assignedTo}</span>${r.assignPriority ? `<span style="font-size:10px;color:var(--muted);margin-left:6px">${r.assignPriority==='urgent'?'🔴 Urgent':r.assignPriority==='normal'?'🟠 Normal':'🟢 Scheduled'}</span>` : ''}</div>` : ''}
       ${r.assignNote ? `<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-style:italic">"${r.assignNote}"</div>` : ''}
+      ${r.status==='progress' ? '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:60%"></div></div>' : ''}
       ${photoStrip}
-      ${r.status==='open'?`<div class="rep-actions">
+      ${r.status!=='resolved'?`<div class="rep-actions">
         <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
+        ${r.status==='open'?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ In Progress</button>`:''}
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
       </div>`:''}
     </div>`;
@@ -942,24 +1032,43 @@ function renderRightCol() {
 }
 
 function renderAdminTable() {
-  const filtered = admCurrentFilter==='all' ? reports
-    : admCurrentFilter==='resolved' ? reports.filter(r=>r.status==='resolved')
-    : reports.filter(r=>r.sev===admCurrentFilter&&r.status==='open');
+  // Date range filter
+  const fromVal = document.getElementById('dateFrom')?.value;
+  const toVal = document.getElementById('dateTo')?.value;
+  const fromTs = fromVal ? new Date(fromVal).setHours(0,0,0,0) : null;
+  const toTs = toVal ? new Date(toVal).setHours(23,59,59,999) : null;
+
+  let filtered = admCurrentFilter==='all' ? [...reports]
+    : admCurrentFilter==='progress' ? reports.filter(r=>r.status==='progress')
+    : reports.filter(r=>r.sev===admCurrentFilter);
+
+  // Apply date range
+  if (fromTs) filtered = filtered.filter(r => r.date >= fromTs);
+  if (toTs) filtered = filtered.filter(r => r.date <= toTs);
+
   const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding Risk',other:'Other Hazard'};
   const sevStyle = {high:`background:var(--warn-light);color:var(--warn)`,med:`background:var(--orange-light);color:var(--orange)`,low:`background:var(--accent-light);color:var(--accent)`};
+  const statusBadge = s => {
+    if (s==='progress') return `<span class="tbl-badge rb-progress">IN PROGRESS</span>`;
+    return `<span class="tbl-badge" style="background:var(--warn-light);color:var(--warn)">OPEN</span>`;
+  };
+
   document.getElementById('admTbody').innerHTML = !filtered.length
-    ? `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">No reports found.</td></tr>`
+    ? `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)">No reports found for selected filters.</td></tr>`
     : filtered.sort((a,b)=>b.date-a.date).map(r=>`
     <tr>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.id}</td>
       <td>${tNames[r.type]||r.type}</td>
-      <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.loc}">${r.loc}</td>
+      <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.loc}">${r.loc}</td>
       <td><span class="tbl-badge" style="${sevStyle[r.sev]||''}">${r.sev?.toUpperCase()}</span></td>
-      <td style="font-size:11.5px">${r.assignedTo ? `<span class="assigned-tag">👤 ${r.assignedTo.split('–')[0].trim()}</span>` : '<span style="color:var(--muted)">Unassigned</span>'}</td>
-      <td><span class="tbl-badge" style="${r.status==='resolved'?'background:var(--blue-light);color:var(--blue)':'background:var(--warn-light);color:var(--warn)'}">${r.status.toUpperCase()}</span></td>
+      <td style="font-size:11px">${r.assignedTo ? `<span class="assigned-tag">👤 ${r.assignedTo.split('–')[0].trim()}</span>` : '<span style="color:var(--muted)">Unassigned</span>'}</td>
+      <td>${statusBadge(r.status)}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.date)}</td>
-      <td>${r.lat?`<button class="tbl-act" onclick="flyAndSwitch(${r.lat},${r.lng})">🗺 View</button>`:''}
-          ${r.status==='open'?`<button class="tbl-act res" onclick="resolveReport('${r.id}')">Resolve</button>`:''}</td>
+      <td>
+        ${r.lat?`<button class="tbl-act" onclick="flyAndSwitch(${r.lat},${r.lng})">🗺 View</button>`:''}
+        ${r.status==='open'?`<button class="tbl-act" onclick="markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
+        ${r.status!=='resolved'?`<button class="tbl-act res" onclick="resolveReport('${r.id}')">✅ Resolve</button>`:''}
+      </td>
     </tr>`).join('');
 }
 
@@ -996,17 +1105,96 @@ async function loadReports() {
   });
 }
 
-async function resolveReport(id) {
-  if (!window._fbReady) return;
-  const db = window._db;
-  // Find the Firestore doc ID
+// Resolution modal state
+let resolveTargetId = null;
+
+function resolveReport(id) {
+  resolveTargetId = id;
+  const r = reports.find(r => r.id === id);
+  if (!r) return;
+  document.getElementById('resModalRef').textContent = id + ' · ' + r.loc;
+  document.getElementById('resOfficer').value = '';
+  document.getElementById('resAction').value = '';
+  document.getElementById('resNotes').value = '';
+  document.getElementById('resolveModal').classList.add('open');
+}
+
+async function confirmResolve() {
+  const officer = document.getElementById('resOfficer').value.trim();
+  const action = document.getElementById('resAction').value.trim();
+  if (!officer) { alert('Please enter the name of the officer who resolved this.'); return; }
+  if (!action) { alert('Please describe what action was taken.'); return; }
+
+  const r = reports.find(r => r.id === resolveTargetId);
+  if (!r || !r._docId) return;
+
+  // Get resolver's current location
+  let resLat = null, resLng = null;
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+    );
+    resLat = pos.coords.latitude;
+    resLng = pos.coords.longitude;
+  } catch { /* location optional */ }
+
+  const btn = document.querySelector('#resolveModal .am-confirm');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    // Save resolution record to a separate 'resolved' collection before deleting
+    const resRecord = {
+      originalId: r.id,
+      type: r.type,
+      sev: r.sev,
+      loc: r.loc,
+      lat: r.lat,
+      lng: r.lng,
+      reportedDate: r.date,
+      resolvedDate: Date.now(),
+      resolvedBy: officer,
+      actionTaken: action,
+      notes: document.getElementById('resNotes').value.trim(),
+      resolverLat: resLat,
+      resolverLng: resLng,
+    };
+    // Save to resolved_log collection
+    await window._fbAddDoc(window._fbCollection(window._db, 'resolved_log'), resRecord);
+    // Delete from active reports
+    await window._fbDeleteDoc(window._fbDoc(window._db, 'reports', r._docId));
+    document.getElementById('resolveModal').classList.remove('open');
+    resolveTargetId = null;
+  } catch(e) {
+    console.error('Resolve error:', e);
+    alert('Could not save. Check your connection.');
+  } finally {
+    btn.textContent = '✅ Confirm Resolution'; btn.disabled = false;
+  }
+}
+
+function closeResolveModal() {
+  document.getElementById('resolveModal').classList.remove('open');
+  resolveTargetId = null;
+}
+// ── IN-PROGRESS LOGIC ──
+async function markInProgress(id) {
   const r = reports.find(r => r.id === id);
   if (!r || !r._docId) return;
   try {
-    await window._fbUpdateDoc(window._fbDoc(db, 'reports', r._docId), { status: 'resolved' });
-    // Real-time listener will auto-refresh the UI
-  } catch(e) { console.error('Resolve error:', e); alert('Could not resolve report. Check your connection.'); }
+    await window._fbUpdateDoc(window._fbDoc(window._db, 'reports', r._docId), {
+      status: 'progress',
+      progressAt: Date.now(),
+    });
+  } catch(e) { alert('Could not update. Check your connection.'); }
 }
+
+// ── DATE FILTER LOGIC ──
+function clearDateFilter() {
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  renderAdminTable();
+}
+
 // ── ASSIGNMENT LOGIC ──
 let assignTargetId = null;
 let assignPriority = null;
@@ -1091,6 +1279,7 @@ function switchView(view,btn) {
   document.querySelectorAll('.main').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+view).classList.add('active');
   if(view==='dashboard') setTimeout(()=>map.invalidateSize(),120);
+  if(view==='reslog') loadResolutionLog();
 }
 function exportCSV() {
   const hdr = ['ID','Type','Severity','Location','Latitude','Longitude','Status','Description','Contact','Date'];
@@ -1099,6 +1288,60 @@ function exportCSV() {
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download = 'namasuba_reports_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// ── RESOLUTION LOG ──
+let resolvedRecords = [];
+
+async function loadResolutionLog() {
+  if (!window._fbReady) return;
+  try {
+    const snap = await window._fbGetDocs(window._fbCollection(window._db, 'resolved_log'));
+    resolvedRecords = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    renderResLog();
+  } catch(e) { console.error('Could not load resolution log:', e); }
+}
+
+function renderResLog() {
+  const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding Risk',other:'Other Hazard'};
+  const tbody = document.getElementById('resLogTbody');
+  if (!tbody) return;
+  if (!resolvedRecords.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)">No resolved reports yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = resolvedRecords.sort((a,b)=>b.resolvedDate-a.resolvedDate).map(r => {
+    const gpsLink = (r.resolverLat && r.resolverLng)
+      ? `<a href="https://maps.google.com/?q=${r.resolverLat},${r.resolverLng}" target="_blank" style="color:var(--accent);font-family:var(--mono);font-size:10.5px">📍 View on Google Maps</a>`
+      : '<span style="color:var(--muted);font-size:11px">Not captured</span>';
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.originalId}</td>
+      <td style="font-size:12.5px">${tNames[r.type]||r.type}</td>
+      <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px" title="${r.loc}">${r.loc}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.reportedDate)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${new Date(r.resolvedDate).toLocaleDateString()}</td>
+      <td style="font-size:12px;font-weight:600">${r.resolvedBy}</td>
+      <td style="font-size:12px;max-width:160px">${r.actionTaken}</td>
+      <td>${gpsLink}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportResLog() {
+  const hdr = ['Original ID','Type','Location','Reported Date','Resolved Date','Resolved By','Action Taken','Notes','Resolver Lat','Resolver Lng'];
+  const rows = resolvedRecords.map(r => [
+    r.originalId, r.type, `"${r.loc}"`,
+    new Date(r.reportedDate).toISOString(),
+    new Date(r.resolvedDate).toISOString(),
+    `"${r.resolvedBy}"`, `"${r.actionTaken}"`,
+    `"${(r.notes||'').replace(/"/g,"'")}"`,
+    r.resolverLat||'', r.resolverLng||''
+  ]);
+  const csv = [hdr,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'resolution_log_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
 }
 
@@ -1167,7 +1410,7 @@ function renderMobileReports() {
   const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
   let list;
   if (mobRepCurrentFilter === 'open') list = reports.filter(r=>r.status==='open');
-  else if (mobRepCurrentFilter === 'resolved') list = reports.filter(r=>r.status==='resolved');
+  else if (mobRepCurrentFilter === 'all') list = [...reports];
   else list = reports.filter(r=>r.sev===mobRepCurrentFilter&&r.status==='open');
   list = list.sort((a,b)=>b.date-a.date);
 
@@ -1177,7 +1420,9 @@ function renderMobileReports() {
   }
   document.getElementById('mob-rep-list').innerHTML = list.map(r => {
     const isNew = Date.now()-r.date<86400000&&r.status==='open';
-    const badge = r.status==='resolved' ? '<span class="rep-badge rb-resolved">RESOLVED</span>' : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    const badge = r.status==='progress'
+      ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
+      : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
     const mobPhotoStrip = (r.photos && r.photos.length > 0)
       ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')">`).join('')}</div>`
       : '';
