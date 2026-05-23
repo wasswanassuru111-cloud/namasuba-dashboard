@@ -779,7 +779,8 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg); colo
   <div class="mob-reports-wrap">
     <div class="mob-filter-row">
       <button class="mob-pill on" onclick="mobRepFilter(this,'open')">Open</button>
-
+      <button class="mob-pill" onclick="mobRepFilter(this,'progress')">🟠 In Progress</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'all')">All</button>
       <button class="mob-pill" onclick="mobRepFilter(this,'high')">🔴 High</button>
       <button class="mob-pill" onclick="mobRepFilter(this,'med')">🟠 Medium</button>
     </div>
@@ -1411,6 +1412,7 @@ function renderMobileReports() {
   let list;
   if (mobRepCurrentFilter === 'open') list = reports.filter(r=>r.status==='open');
   else if (mobRepCurrentFilter === 'all') list = [...reports];
+  else if (mobRepCurrentFilter === 'progress') list = reports.filter(r=>r.status==='progress');
   else list = reports.filter(r=>r.sev===mobRepCurrentFilter&&r.status==='open');
   list = list.sort((a,b)=>b.date-a.date);
 
@@ -1430,12 +1432,13 @@ function renderMobileReports() {
       <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
       <div class="rep-loc">📍 ${r.loc}</div>
       <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
-      ${mobPhotoStrip}
       ${r.assignedTo ? `<div style="margin-top:5px;font-size:11px"><span class="assigned-tag">👤 ${r.assignedTo}</span></div>` : ''}
+      ${r.status==='progress' ? '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:60%"></div></div>' : ''}
       ${mobPhotoStrip}
-      ${r.status==='open'?`<div class="rep-actions">
+      ${r.status!=='resolved'?`<div class="rep-actions">
         <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
-        <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}');renderMobileReports()">✅ Resolve</button>
+        ${r.status==='open'?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
+        <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
       </div>`:''}
     </div>`;
   }).join('');
@@ -1485,7 +1488,7 @@ function renderMobileAdmin() {
       </div>
       <div style="font-size:11px;color:var(--text2);margin-bottom:3px">📍 ${r.loc}</div>
       <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">${r.id} · ${timeAgo(r.date)}</div>
-      ${r.status==='open'?`<button onclick="resolveReport('${r.id}');renderMobileAdmin()" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer">✅ Mark as Resolved</button>`:`<span style="font-size:11px;color:var(--blue);font-family:var(--mono)">✅ RESOLVED</span>`}
+      ${r.status==='open'?`<button onclick="resolveReport('${r.id}')" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer">✅ Mark as Resolved</button>`:`<span style="font-size:11px;color:var(--blue);font-family:var(--mono)">✅ RESOLVED</span>`}
     </div>`).join('');
 }
 
