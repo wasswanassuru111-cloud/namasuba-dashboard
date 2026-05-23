@@ -931,7 +931,7 @@ function rebuildMarkers() {
     const iconType = r.type;
     const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
     const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
-    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&r.status==='open'?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>${r.photos&&r.photos[0]?`<div style="margin-top:8px"><img src="${r.photos[0]}" onclick="openPhoto('${r.photos[0]}')" style="width:100%;border-radius:7px;cursor:pointer;max-height:120px;object-fit:cover" title="Click to enlarge"></div>`:''}`, {maxWidth:280});
+    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&(!r.status||r.status==='open')?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>${r.photos&&r.photos[0]?`<div style="margin-top:8px"><img src="${r.photos[0]}" onclick="openPhoto('${r.photos[0]}')" style="width:100%;border-radius:7px;cursor:pointer;max-height:120px;object-fit:cover" title="Click to enlarge"></div>`:''}`, {maxWidth:280});
     m.addTo(tgt);
     if (r.status!=='resolved') heatPts.push([r.lat, r.lng, r.sev==='high'?1:r.sev==='med'?.6:.3]);
   });
@@ -961,7 +961,8 @@ function timeAgo(ts) {
 
 // ── RENDER ──
 function updateKPIs() {
-  const open = reports.filter(r=>r.status==='open');
+  const isActiveOpen = r => !r.status || r.status==='open';
+  const open = reports.filter(r => isActiveOpen(r) || r.status==='progress');
   const res = reports.filter(r=>r.status==='resolved');
   const dumps = open.filter(r=>r.type==='dump');
   const blocks = open.filter(r=>r.type==='block');
@@ -993,7 +994,7 @@ function updateKPIs() {
 
   document.getElementById('adm-total').textContent = reports.length;
   document.getElementById('adm-open').textContent = open.length;
-  document.getElementById('adm-high').textContent = reports.filter(r=>r.sev==='high'&&r.status==='open').length;
+  document.getElementById('adm-high').textContent = reports.filter(r=>r.sev==='high'&&(!r.status||r.status==='open'||r.status==='progress')).length;
   document.getElementById('adm-res').textContent = res.length;
 }
 
@@ -1010,7 +1011,7 @@ function renderRightCol() {
     return;
   }
   document.getElementById('rcBody').innerHTML = list.map(r => {
-    const isNew = Date.now()-r.date<86400000&&r.status==='open';
+    const isNew = Date.now()-r.date<86400000&&(!r.status||r.status==='open');
     const badge = r.status==='progress'
       ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
       : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
@@ -1319,7 +1320,14 @@ function renderResLog() {
   const tbody = document.getElementById('resLogTbody');
   if (!tbody) return;
   if (!resolvedRecords.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)">No resolved reports yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">
+      <div style="font-size:28px;margin-bottom:10px">📋</div>
+      <div style="font-weight:700;margin-bottom:6px;font-size:14px">No resolved reports yet</div>
+      <div style="font-size:12px;max-width:360px;margin:0 auto;line-height:1.6">
+        This log fills automatically when reports are resolved using the ✅ Resolve button.
+        Each resolution records the officer name, action taken, and GPS location.
+      </div>
+    </td></tr>`;
     return;
   }
   tbody.innerHTML = resolvedRecords.sort((a,b)=>b.resolvedDate-a.resolvedDate).map(r => {
@@ -1432,7 +1440,7 @@ function renderMobileReports() {
     return;
   }
   document.getElementById('mob-rep-list').innerHTML = list.map(r => {
-    const isNew = Date.now()-r.date<86400000&&r.status==='open';
+    const isNew = Date.now()-r.date<86400000&&(!r.status||r.status==='open');
     const badge = r.status==='progress'
       ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
       : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
@@ -1464,7 +1472,7 @@ function mobRepFilter(btn, filter) {
 }
 
 function renderMobileStats() {
-  const open = reports.filter(r=>r.status==='open');
+  const open = reports.filter(r => !r.status || r.status==='open' || r.status==='progress');
   const blocks = open.filter(r=>r.type==='block');
   document.getElementById('mob-blockedKm').textContent = Math.min(blocks.length*.15,1.1).toFixed(1)+' km est.';
   document.getElementById('mob-lastSync').textContent = new Date().toLocaleTimeString();
@@ -1485,11 +1493,11 @@ function renderMobileStats() {
 }
 
 function renderMobileAdmin() {
-  const open = reports.filter(r=>r.status==='open');
+  const open = reports.filter(r => !r.status || r.status==='open' || r.status==='progress');
   const res = reports.filter(r=>r.status==='resolved');
   document.getElementById('m-adm-total').textContent = reports.length;
   document.getElementById('m-adm-open').textContent = open.length;
-  document.getElementById('m-adm-high').textContent = reports.filter(r=>r.sev==='high'&&r.status==='open').length;
+  document.getElementById('m-adm-high').textContent = reports.filter(r=>r.sev==='high'&&(!r.status||r.status==='open'||r.status==='progress')).length;
   document.getElementById('m-adm-res').textContent = res.length;
   const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding',other:'Other'};
   document.getElementById('mob-admin-list').innerHTML = reports.sort((a,b)=>b.date-a.date).map(r=>`
@@ -1500,7 +1508,7 @@ function renderMobileAdmin() {
       </div>
       <div style="font-size:11px;color:var(--text2);margin-bottom:3px">📍 ${r.loc}</div>
       <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">${r.id} · ${timeAgo(r.date)}</div>
-      ${r.status==='open'?`<button onclick="resolveReport('${r.id}')" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer">✅ Mark as Resolved</button>`:`<span style="font-size:11px;color:var(--blue);font-family:var(--mono)">✅ RESOLVED</span>`}
+      ${(!r.status||r.status==='open'||r.status==='progress')?`<button onclick="resolveReport('${r.id}')" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer">✅ Mark as Resolved</button>`:`<span style="font-size:11px;color:var(--blue);font-family:var(--mono)">✅ RESOLVED</span>`}
     </div>`).join('');
 }
 
@@ -1517,7 +1525,7 @@ const _origRefresh = refresh;
 function refresh() {
   updateKPIs(); renderRightCol(); renderAdminTable(); rebuildMarkers();
   // Mobile KPIs
-  const open = reports.filter(r=>r.status==='open');
+  const open = reports.filter(r => !r.status || r.status==='open' || r.status==='progress');
   const dumps = open.filter(r=>r.type==='dump');
   const blocks = open.filter(r=>r.type==='block');
   const res = reports.filter(r=>r.status==='resolved');
