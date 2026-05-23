@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Municipal Dashboard – Namasuba–Lufuka</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQnuWNtgPPRnxTgne8xxm7LNzQYvsfRcg",
+    authDomain: "lufuka-dashboard.firebaseapp.com",
+    projectId: "lufuka-dashboard",
+    storageBucket: "lufuka-dashboard.firebasestorage.app",
+    messagingSenderId: "658485725632",
+    appId: "1:658485725632:web:f0cbe775bff9ccea8ee025"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Expose to global scope for use in non-module scripts
+  window._db = db;
+  window._fbCollection = collection;
+  window._fbAddDoc = addDoc;
+  window._fbGetDocs = getDocs;
+  window._fbDoc = doc;
+  window._fbUpdateDoc = updateDoc;
+  window._fbDeleteDoc = deleteDoc;
+  window._fbOnSnapshot = onSnapshot;
+  window._fbQuery = query;
+  window._fbOrderBy = orderBy;
+  window._fbReady = true;
+
+  // Signal that Firebase is ready
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+<style>
+:root {
+  --bg: #f0f2f0;
+  --surface: #ffffff;
+  --surface2: #f7f9f7;
+  --border: #dde5dd;
+  --border2: #c8d5c8;
+  --text: #1a2e1a;
+  --text2: #4a6b4a;
+  --muted: #7a9a7a;
+  --accent: #1a6b3a;
+  --accent-light: #e8f5ee;
+  --accent-mid: #2d9b56;
+  --warn: #c0392b;
+  --warn-light: #fdf2f1;
+  --orange: #d4691e;
+  --orange-light: #fdf4ee;
+  --blue: #1a5276;
+  --blue-light: #eaf2fb;
+  --font: 'Space Grotesk', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 12px;
+  --shadow: 0 2px 12px rgba(26,46,26,.08);
+  --shadow-md: 0 4px 24px rgba(26,46,26,.12);
+  --bottombar: 64px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; }
+
+/* ── MOBILE BOTTOM TAB BAR ── */
+.mobile-tabbar {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  background: var(--surface); border-top: 1.5px solid var(--border);
+  height: var(--bottombar);
+  padding: 0 8px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-tabbar-inner {
+  display: flex; height: 100%; align-items: center; justify-content: space-around;
+}
+.mob-tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px; padding: 6px 4px;
+  border: none; background: transparent; cursor: pointer;
+  border-radius: 10px; transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.mob-tab .mt-icon { font-size: 20px; line-height: 1; }
+.mob-tab .mt-label { font-size: 10px; font-weight: 600; color: var(--muted); font-family: var(--font); }
+.mob-tab.active .mt-label { color: var(--accent); }
+.mob-tab.active .mt-icon { filter: none; }
+.mob-tab-indicator {
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  width: 28px; height: 3px; border-radius: 2px; background: var(--accent);
+  opacity: 0; transition: opacity .2s;
+}
+.mob-tab.active .mob-tab-indicator { opacity: 1; }
+.mob-badge {
+  position: absolute; top: 4px; right: 14px;
+  background: var(--warn); color: #fff; border-radius: 99px;
+  font-size: 9px; font-weight: 700; padding: 1px 5px;
+  font-family: var(--mono); min-width: 16px; text-align: center;
+  display: none;
+}
+.mob-badge.show { display: block; }
+
+/* ── MOBILE PANEL SYSTEM ── */
+.mob-panel {
+  display: none;
+  position: fixed; inset: 0; top: 56px; bottom: var(--bottombar);
+  background: var(--bg); overflow-y: auto; z-index: 50;
+}
+.mob-panel.active { display: block; }
+
+/* Map panel gets special treatment — no scroll, full height */
+#mob-map-panel {
+  overflow: hidden;
+}
+#mob-map-panel #map {
+  width: 100%; height: 100%;
+}
+
+/* Mobile KPI strip */
+.mob-kpi-strip {
+  display: flex; gap: 8px; padding: 12px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.mob-kpi-strip::-webkit-scrollbar { display: none; }
+.mob-kpi {
+  flex-shrink: 0; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; text-align: center; min-width: 80px;
+}
+.mob-kpi-num { font-size: 20px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.mob-kpi-lbl { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+.mob-kpi.k-red .mob-kpi-num { color: var(--warn); }
+.mob-kpi.k-orange .mob-kpi-num { color: var(--orange); }
+.mob-kpi.k-green .mob-kpi-num { color: var(--accent); }
+.mob-kpi.k-blue .mob-kpi-num { color: var(--blue); }
+
+/* Mobile reports list */
+.mob-reports-wrap { padding: 0 12px 20px; }
+.mob-section-label {
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); font-family: var(--mono); padding: 12px 0 8px;
+}
+.mob-filter-row {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.mob-filter-row::-webkit-scrollbar { display: none; }
+.mob-pill {
+  flex-shrink: 0; padding: 5px 12px; border-radius: 99px;
+  font-size: 11.5px; font-weight: 600; border: 1.5px solid var(--border);
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-family: var(--font); -webkit-tap-highlight-color: transparent;
+}
+.mob-pill.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+/* Mobile admin */
+.mob-admin-wrap { padding: 12px; }
+.mob-admin-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.mob-as { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 12px; }
+.mob-as-num { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+.mob-as-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* Mobile map floating buttons */
+.mob-map-overlay {
+  position: absolute; bottom: 16px; right: 12px; z-index: 500;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mob-map-btn {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  box-shadow: var(--shadow); font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+
+/* Map layer legend on mobile */
+.mob-map-legend {
+  position: absolute; bottom: 16px; left: 12px; z-index: 500;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow);
+}
+
+
+/* ── LOGIN SCREEN ── */
+.login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(135deg, #0d2b1a 0%, #1a4a2e 50%, #0a1f12 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.login-screen.hidden { display: none; }
+.login-box {
+  background: var(--surface); border-radius: 20px;
+  padding: 40px 36px; max-width: 400px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  animation: fadeUp .4s ease;
+}
+@keyframes fadeUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
+.login-logo {
+  width: 56px; height: 56px; border-radius: 14px;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-size: 26px; margin-bottom: 20px;
+}
+.login-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
+.login-label { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; display: block; font-family: var(--mono); letter-spacing: .5px; }
+.login-input {
+  width: 100%; padding: 12px 14px; background: var(--surface2);
+  border: 2px solid var(--border); border-radius: 10px;
+  font-family: var(--font); font-size: 15px; outline: none;
+  transition: border-color .2s; margin-bottom: 16px; letter-spacing: 3px;
+  color: var(--text);
+}
+.login-input:focus { border-color: var(--accent); background: #fff; }
+.login-input.shake { animation: shake .4s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+.login-btn {
+  width: 100%; padding: 14px; background: var(--accent); border: none;
+  border-radius: 10px; color: #fff; font-family: var(--font);
+  font-size: 15px; font-weight: 700; cursor: pointer; transition: all .2s;
+  margin-bottom: 16px;
+}
+.login-btn:hover { background: #155c2e; }
+.login-error {
+  padding: 10px 14px; background: var(--warn-light);
+  border: 1.5px solid #f5b7b1; border-radius: 8px;
+  color: var(--warn); font-size: 12.5px; font-weight: 600;
+  display: none; margin-bottom: 16px;
+}
+.login-hint {
+  font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.6;
+  border-top: 1px solid var(--border); padding-top: 14px;
+}
+.login-hint strong { color: var(--text); }
+
+/* ── SHELL ── */
+.shell { display: grid; grid-template-rows: 56px 1fr; height: 100vh; }
+
+/* ── TOP BAR ── */
+.topbar {
+  background: var(--surface); border-bottom: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; gap: 16px; z-index: 100;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.brand-name { font-size: 13px; font-weight: 700; }
+.brand-sub { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+.nav-tabs { display: flex; gap: 2px; }
+.nav-tab { padding: 7px 16px; border-radius: 8px; border: none; background: transparent; font-family: var(--font); font-size: 12.5px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all .18s; display: flex; align-items: center; gap: 6px; }
+.nav-tab:hover { background: var(--surface2); color: var(--text); }
+.nav-tab.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.live-pill { display: flex; align-items: center; gap: 5px; padding: 5px 10px; background: var(--accent-light); border-radius: 99px; font-size: 11px; color: var(--accent); font-weight: 600; font-family: var(--mono); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-mid); animation: blink 1.6s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.lock-btn { padding: 7px 13px; background: transparent; border: 1.5px solid var(--border); border-radius: 8px; font-family: var(--font); font-size: 12px; color: var(--muted); cursor: pointer; transition: all .18s; }
+.lock-btn:hover { border-color: var(--warn); color: var(--warn); }
+
+/* ── MAIN ── */
+.main { display: none; height: calc(100vh - 56px); overflow: hidden; }
+.main.active { display: flex; }
+
+/* ── DASHBOARD ── */
+#view-dashboard { flex-direction: row; }
+.sidebar { width: 268px; min-width: 268px; background: var(--surface); border-right: 1.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+.map-area { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+.right-col { width: 290px; min-width: 290px; background: var(--surface); border-left: 1.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+
+.sb-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.sb-label { font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); font-weight: 500; margin-bottom: 10px; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kpi { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px; text-align: center; }
+.kpi-num { font-size: 24px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.kpi.k-red { border-top: 3px solid var(--warn); } .kpi.k-red .kpi-num { color: var(--warn); }
+.kpi.k-orange { border-top: 3px solid var(--orange); } .kpi.k-orange .kpi-num { color: var(--orange); }
+.kpi.k-green { border-top: 3px solid var(--accent-mid); } .kpi.k-green .kpi-num { color: var(--accent); }
+.kpi.k-blue { border-top: 3px solid var(--blue); } .kpi.k-blue .kpi-num { color: var(--blue); }
+
+.layer-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.layer-row:last-child { border-bottom: none; }
+.layer-left { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; }
+.layer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.layer-count { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+.sw { width: 36px; height: 20px; border-radius: 10px; background: var(--border2); position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0; }
+.sw::after { content:''; position:absolute; width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.2); }
+.sw.on { background: var(--accent); }
+.sw.on::after { left:19px; }
+
+.risk-item { margin-bottom: 10px; }
+.risk-item:last-child { margin-bottom: 0; }
+.risk-top { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; }
+.risk-pct { font-family: var(--mono); font-weight: 600; font-size: 11px; }
+.risk-bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.risk-fill { height: 100%; border-radius: 3px; transition: width 1.2s cubic-bezier(.25,.46,.45,.94); }
+
+.map-toolbar { position: absolute; top: 14px; left: 14px; z-index: 500; display: flex; flex-direction: column; gap: 6px; }
+.mtb-group { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.mtb-btn { display: block; width: 100%; padding: 8px 14px; border: none; background: transparent; font-family: var(--font); font-size: 11.5px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; text-align: left; border-bottom: 1px solid var(--border); }
+.mtb-btn:last-child { border-bottom: none; }
+.mtb-btn:hover { background: var(--surface2); }
+.mtb-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+
+.map-legend { position: absolute; bottom: 24px; left: 14px; z-index: 500; background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 150px; }
+.legend-title { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; margin-bottom: 5px; }
+.legend-item:last-child { margin-bottom: 0; }
+.legend-sym { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-line { width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+.rc-tabs { display: flex; border-bottom: 1.5px solid var(--border); }
+.rc-tab { flex: 1; padding: 12px 6px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all .18s; margin-bottom: -1.5px; }
+.rc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.rc-body { padding: 12px; flex: 1; overflow-y: auto; }
+
+.rep-card { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all .18s; position: relative; overflow: hidden; }
+.rep-card::before { content:''; position:absolute; left:0;top:0;bottom:0;width:3.5px; }
+.rep-card.sev-high::before { background: var(--warn); }
+.rep-card.sev-med::before { background: var(--orange); }
+.rep-card.sev-low::before { background: var(--accent-mid); }
+.rep-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateX(2px); }
+.rep-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+.rep-type { font-size: 12.5px; font-weight: 600; }
+.rep-badge { font-size: 9.5px; padding: 2px 8px; border-radius: 99px; font-family: var(--mono); font-weight: 600; }
+.rb-high { background: var(--warn-light); color: var(--warn); }
+.rb-med { background: var(--orange-light); color: var(--orange); }
+.rb-low { background: var(--accent-light); color: var(--accent); }
+.rb-resolved { background: var(--blue-light); color: var(--blue); }
+.rep-loc { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+.rep-meta { font-size: 10px; color: var(--muted); font-family: var(--mono); display: flex; gap: 8px; }
+.rep-photos { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.rep-photo { width: 64px; height: 48px; border-radius: 6px; object-fit: cover; border: 1.5px solid var(--border); cursor: pointer; transition: transform .15s; }
+.rep-photo:hover { transform: scale(1.05); }
+.photo-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:9999; align-items:center; justify-content:center; }
+.photo-modal-bg.open { display:flex; }
+.photo-modal-img { max-width:90vw; max-height:85vh; border-radius:12px; box-shadow:0 8px 40px rgba(0,0,0,.6); }
+.photo-modal-close { position:absolute; top:16px; right:20px; font-size:28px; color:#fff; cursor:pointer; line-height:1; }
+
+/* ── ASSIGNMENT MODAL ── */
+.assign-modal-bg {
+  display:none; position:fixed; inset:0;
+  background:rgba(26,46,26,.55); z-index:8000;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.assign-modal-bg.open { display:flex; }
+.assign-modal {
+  background:var(--surface); border:1.5px solid var(--border);
+  border-radius:16px; padding:28px; width:90%; max-width:420px;
+  box-shadow:var(--shadow-md); animation:slideUp .25s ease;
+}
+.am-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+.am-ref { font-size:11px; color:var(--muted); font-family:var(--mono); margin-bottom:18px; }
+.am-label { font-size:11px; font-weight:700; color:var(--text2); margin-bottom:6px; display:block; font-family:var(--mono); letter-spacing:.5px; }
+.am-select, .am-note {
+  width:100%; padding:10px 13px;
+  background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:8px; color:var(--text); font-family:var(--font);
+  font-size:13px; outline:none; transition:border-color .18s; margin-bottom:14px;
+}
+.am-select:focus, .am-note:focus { border-color:var(--accent); }
+.am-note { min-height:70px; resize:vertical; }
+.am-priority { display:flex; gap:8px; margin-bottom:18px; }
+.am-pri-opt {
+  flex:1; padding:9px 6px; border:1.5px solid var(--border);
+  border-radius:8px; text-align:center; cursor:pointer;
+  font-size:12px; font-weight:700; transition:all .15s;
+  background:var(--surface2);
+}
+.am-pri-opt.sel-high { border-color:var(--warn); background:var(--warn-light); color:var(--warn); }
+.am-pri-opt.sel-med { border-color:var(--orange); background:var(--orange-light); color:var(--orange); }
+.am-pri-opt.sel-low { border-color:var(--accent-mid); background:var(--accent-light); color:var(--accent); }
+.am-btns { display:flex; gap:8px; }
+.am-cancel {
+  flex:1; padding:11px; background:transparent;
+  border:1.5px solid var(--border); border-radius:8px;
+  font-family:var(--font); font-size:13px; font-weight:600;
+  color:var(--muted); cursor:pointer; transition:all .15s;
+}
+.am-cancel:hover { border-color:var(--warn); color:var(--warn); }
+.am-confirm {
+  flex:2; padding:11px; background:var(--accent);
+  border:none; border-radius:8px;
+  font-family:var(--font); font-size:13px; font-weight:700;
+  color:#fff; cursor:pointer; transition:all .15s;
+}
+.am-confirm:hover { background:#155c2e; }
+.assigned-tag {
+  font-size:10px; padding:2px 8px; border-radius:99px;
+  background:var(--blue-light); color:var(--blue);
+  font-family:var(--mono); font-weight:600; margin-left:4px;
+}
+.rb-progress { background:#fff3e0; color:#e65100; }
+.progress-bar-wrap { height:3px; background:var(--border); border-radius:2px; margin-top:6px; overflow:hidden; }
+.progress-bar-fill { height:100%; border-radius:2px; background:var(--orange); animation:progressPulse 1.5s ease-in-out infinite; }
+@keyframes progressPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* DATE FILTER */
+.date-filter-wrap { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.date-filter-label { font-size:10.5px; font-weight:700; color:var(--muted); font-family:var(--mono); white-space:nowrap; }
+.date-input { padding:6px 10px; background:var(--surface2); border:1.5px solid var(--border); border-radius:7px; font-family:var(--font); font-size:11.5px; color:var(--text); outline:none; transition:border-color .18s; }
+.date-input:focus { border-color:var(--accent); }
+.date-clear { padding:6px 10px; background:transparent; border:1.5px solid var(--border); border-radius:7px; font-family:var(--font); font-size:11.5px; color:var(--muted); cursor:pointer; transition:all .15s; }
+.date-clear:hover { border-color:var(--warn); color:var(--warn); }
+
+/* RESOLUTION RECORD */
+.res-record { background:var(--accent-light); border:1.5px solid var(--green-border,#b0d9c0); border-radius:10px; padding:12px 14px; margin:12px 36px; font-size:12px; }
+.res-record-title { font-weight:700; color:var(--accent); margin-bottom:6px; font-size:13px; }
+.res-record-row { display:flex; gap:8px; margin-bottom:3px; color:var(--text2); }
+.res-record-label { color:var(--muted); min-width:80px; font-family:var(--mono); font-size:11px; }
+.rep-actions { display: flex; gap: 5px; margin-top: 8px; }
+.rep-act { flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-family: var(--font); font-size: 10.5px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); }
+.rep-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.rep-act.resolve { background: var(--accent); color: #fff; border-color: var(--accent); }
+.rep-act.resolve:hover { background: #155c2e; }
+
+/* ── ADMIN VIEW ── */
+#view-admin { flex-direction: column; overflow-y: auto; background: var(--bg); }
+.admin-wrap { padding: 24px; max-width: 960px; margin: 0 auto; width: 100%; }
+.admin-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+.admin-title { font-size: 18px; font-weight: 700; }
+.admin-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.admin-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.as-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.as-num { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.as-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.admin-table-wrap { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.admin-toolbar { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filter-pill { padding: 5px 12px; border-radius: 99px; font-size: 11.5px; font-weight: 600; border: 1.5px solid var(--border); background: transparent; cursor: pointer; color: var(--muted); transition: all .15s; font-family: var(--font); }
+.filter-pill:hover { border-color: var(--accent); color: var(--accent); }
+.filter-pill.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.admin-table { width: 100%; border-collapse: collapse; }
+.admin-table th { padding: 10px 14px; background: var(--surface2); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; text-align: left; font-family: var(--mono); }
+.admin-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; vertical-align: middle; }
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table tr:hover td { background: var(--surface2); }
+.tbl-badge { font-size: 10px; padding: 3px 9px; border-radius: 99px; font-family: var(--mono); font-weight: 600; }
+.tbl-act { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; font-family: var(--font); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text2); margin-right: 3px; }
+.tbl-act:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.tbl-act.res { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tbl-act.res:hover { background: #155c2e; }
+
+.export-btn { padding: 9px 16px; background: var(--accent); border: none; border-radius: 8px; color: #fff; font-family: var(--font); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: all .18s; }
+.export-btn:hover { background: #155c2e; }
+
+/* Leaflet */
+.leaflet-container { font-family: var(--font); background: #e8eee8 !important; }
+.leaflet-popup-content-wrapper { background: var(--surface); color: var(--text); border: 1.5px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); }
+.leaflet-popup-tip { background: var(--surface); }
+.leaflet-popup-content { font-size: 12.5px; margin: 13px 15px; }
+.pu-title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.pu-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.pu-badge { display:inline-block; font-size:10px; padding:2px 9px; border-radius:99px; margin-top:6px; font-weight:600; }
+
+/* New badge */
+.new-tag { font-size: 9px; background: var(--accent); color: #fff; padding: 1px 5px; border-radius: 3px; font-family: var(--mono); vertical-align: middle; margin-left: 3px; }
+
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🌿</div>
+    <div class="login-title">Municipal Dashboard</div>
+    <div class="login-sub">Namasuba–Lufuka Environmental Management System<br>Makindye Ssabagabo Municipal Council</div>
+
+    <div class="login-error" id="loginError">❌ Incorrect password. Please try again.</div>
+
+    <label class="login-label">STAFF PASSWORD</label>
+    <input class="login-input" type="password" id="pwInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">🔓 Access Dashboard</button>
+
+    <div class="login-hint">
+      This dashboard is for <strong>Makindye Ssabagabo Municipal Council</strong> staff only.<br>
+      Community members: use the <strong>Community Reporting Tool</strong> to submit issues.<br><br>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--border2)">Demo password: <strong style="color:var(--muted)">makindye2025</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN SHELL ── -->
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">🌿</div>
+      <div>
+        <div class="brand-name">Namasuba–Lufuka Environmental Dashboard</div>
+        <div class="brand-sub">Makindye Ssabagabo Municipal Council · Staff View</div>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" onclick="switchView('dashboard',this)">🗺️ Map Dashboard</button>
+      <button class="nav-tab" onclick="switchView('admin',this)">⚙️ Manage Reports</button>
+      <button class="nav-tab" onclick="switchView('reslog',this)">📋 Resolution Log</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="live-pill"><div class="live-dot"></div><span id="liveCount">Connecting...</span></div>
+      <button class="lock-btn" onclick="lockDashboard()">🔒 Lock</button>
+    </div>
+  </header>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="view-dashboard" class="main active">
+    <aside class="sidebar">
+      <div class="sb-section">
+        <div class="sb-label">Summary</div>
+        <div class="kpi-row">
+          <div class="kpi k-red"><div class="kpi-num" id="kpi-dump">—</div><div class="kpi-lbl">Dump Sites</div></div>
+          <div class="kpi k-orange"><div class="kpi-num" id="kpi-block">—</div><div class="kpi-lbl">Blocked Drains</div></div>
+          <div class="kpi k-green"><div class="kpi-num" id="kpi-res">—</div><div class="kpi-lbl">Resolved</div></div>
+          <div class="kpi k-blue"><div class="kpi-num" id="kpi-new">—</div><div class="kpi-lbl">New (24h)</div></div>
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Map Layers</div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:#c0392b"></span>Illegal Dumping<span class="layer-count" id="lc-dump"></span></div>
+          <div class="sw on" onclick="toggleLayer(this,'dump')"></div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:#d4691e"></span>Blocked Drainage<span class="layer-count" id="lc-block"></span></div>
+          <div class="sw on" onclick="toggleLayer(this,'block')"></div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:#3b82f6"></span>Drainage Network</div>
+          <div class="sw on" onclick="toggleLayer(this,'channels')"></div>
+        </div>
+        <div class="layer-row">
+          <div class="layer-left"><span class="layer-dot" style="background:rgba(192,57,43,.35)"></span>Hotspot Heatmap</div>
+          <div class="sw on" onclick="toggleLayer(this,'heat')"></div>
+        </div>
+
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Flood Risk by Zone</div>
+        <div id="riskBars"></div>
+      </div>
+      <div class="sb-section" style="border-bottom:none">
+        <div class="sb-label">Network Status</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8">
+          <div>📏 Total network: <strong style="color:var(--text)">~4.2 km</strong></div>
+          <div>🚧 Blocked (est.): <strong id="blockedKm" style="color:var(--orange)">—</strong></div>
+          <div>✅ Clear: <strong style="color:var(--accent)">~3.1 km</strong></div>
+          <div>🔄 Last sync: <strong id="lastSync" style="color:var(--text)">—</strong></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="map-area">
+      <div class="map-toolbar">
+        <div class="mtb-group">
+          <button class="mtb-btn active" onclick="setBasemap('street',this)">🗺 Street</button>
+          <button class="mtb-btn" onclick="setBasemap('satellite',this)">🛰 Satellite</button>
+          <button class="mtb-btn" onclick="setBasemap('topo',this)">⛰ Topo</button>
+        </div>
+      </div>
+      <div id="map"></div>
+      <div class="map-legend">
+        <div class="legend-title">Legend</div>
+        <div class="legend-item"><div class="legend-sym" style="background:#c0392b"></div>Illegal Dumping</div>
+        <div class="legend-item"><div class="legend-sym" style="background:#d4691e"></div>Blocked Drain</div>
+        <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div>Drain Network</div>
+  
+      </div>
+    </div>
+
+    <aside class="right-col">
+      <div class="rc-tabs">
+        <div class="rc-tab active" onclick="rcTab(this,'open')">Open <span id="openBadge" style="font-family:var(--mono);font-size:10px;background:var(--warn-light);color:var(--warn);padding:1px 6px;border-radius:4px;margin-left:3px"></span></div>
+        <div class="rc-tab" onclick="rcTab(this,'all')">All Reports</div>
+      </div>
+      <div class="rc-body" id="rcBody"></div>
+    </aside>
+  </div>
+
+  <!-- ADMIN VIEW -->
+  <div id="view-admin" class="main">
+    <div class="admin-wrap">
+      <div class="admin-hdr">
+        <div>
+          <div class="admin-title">⚙️ Reports Management</div>
+          <div class="admin-sub">Makindye Ssabagabo Municipal Council · Environmental Team</div>
+        </div>
+        <button class="export-btn" onclick="exportCSV()">⬇️ Export CSV for QGIS</button>
+      </div>
+      <div class="admin-stats">
+        <div class="as-card"><div class="as-num" id="adm-total" style="color:var(--text)">—</div><div class="as-lbl">Total Reports</div></div>
+        <div class="as-card"><div class="as-num" id="adm-open" style="color:var(--warn)">—</div><div class="as-lbl">Open Issues</div></div>
+        <div class="as-card"><div class="as-num" id="adm-high" style="color:var(--orange)">—</div><div class="as-lbl">High Severity</div></div>
+        <div class="as-card"><div class="as-num" id="adm-res" style="color:var(--accent)">—</div><div class="as-lbl">Resolved</div></div>
+      </div>
+      <div class="admin-table-wrap">
+        <div class="date-filter-wrap">
+          <span class="date-filter-label">DATE RANGE:</span>
+          <input class="date-input" type="date" id="dateFrom" onchange="renderAdminTable()" title="From date">
+          <span style="font-size:12px;color:var(--muted)">to</span>
+          <input class="date-input" type="date" id="dateTo" onchange="renderAdminTable()" title="To date">
+          <button class="date-clear" onclick="clearDateFilter()">✕ Clear</button>
+        </div>
+        <div class="admin-toolbar">
+          <button class="filter-pill on" onclick="admFilter(this,'all')">All</button>
+          <button class="filter-pill" onclick="admFilter(this,'high')">🔴 High</button>
+          <button class="filter-pill" onclick="admFilter(this,'med')">🟠 Medium</button>
+          <button class="filter-pill" onclick="admFilter(this,'low')">🟢 Low</button>
+          <button class="filter-pill" onclick="admFilter(this,'progress')">🟠 In Progress</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="admin-table"><thead><tr>
+            <th>Ref</th><th>Type</th><th>Location</th><th>Severity</th><th>Assigned To</th><th>Status</th><th>Reported</th><th>Actions</th>
+          </tr></thead><tbody id="admTbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO LIGHTBOX MODAL -->
+<div class="photo-modal-bg" id="photoModal" onclick="closePhotoModal()">
+  <span class="photo-modal-close">&times;</span>
+  <img class="photo-modal-img" id="photoModalImg" src="" alt="Report photo">
+</div>
+
+<!-- ASSIGNMENT MODAL -->
+<div class="assign-modal-bg" id="assignModal">
+  <div class="assign-modal">
+    <div class="am-title">👤 Assign Report to Field Team</div>
+    <div class="am-ref" id="amRef"></div>
+
+    <label class="am-label">ASSIGN TO</label>
+    <select class="am-select" id="amTeam">
+      <option value="">Select a team or officer...</option>
+      <option value="Team A – Namasuba Zone">Team A – Namasuba Zone</option>
+      <option value="Team B – Lufuka Zone">Team B – Lufuka Zone</option>
+      <option value="Team C – Market Area">Team C – Market Area</option>
+      <option value="Team D – Drainage Maintenance">Team D – Drainage Maintenance</option>
+      <option value="Supervisor – Field Coordinator">Supervisor – Field Coordinator</option>
+    </select>
+
+    <label class="am-label">PRIORITY</label>
+    <div class="am-priority">
+      <div class="am-pri-opt" onclick="amPriority(this,'urgent')">🔴 Urgent<br><small style="font-weight:400;font-size:10px">Today</small></div>
+      <div class="am-pri-opt" onclick="amPriority(this,'normal')">🟠 Normal<br><small style="font-weight:400;font-size:10px">This week</small></div>
+      <div class="am-pri-opt" onclick="amPriority(this,'low')">🟢 Scheduled<br><small style="font-weight:400;font-size:10px">Next round</small></div>
+    </div>
+
+    <label class="am-label">NOTES FOR TEAM (OPTIONAL)</label>
+    <textarea class="am-note" id="amNote" placeholder="e.g. Access from the rear gate, bring PPE, large truck needed..."></textarea>
+
+    <div class="am-btns">
+      <button class="am-cancel" onclick="closeAssignModal()">Cancel</button>
+      <button class="am-confirm" onclick="confirmAssign()">✅ Confirm Assignment</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESOLUTION MODAL -->
+<div class="assign-modal-bg" id="resolveModal">
+  <div class="assign-modal">
+    <div class="am-title">✅ Confirm Resolution</div>
+    <div class="am-ref" id="resModalRef"></div>
+
+    <label class="am-label">RESOLVED BY (OFFICER NAME)</label>
+    <input class="am-select" style="height:auto;padding:10px 13px" type="text" id="resOfficer" placeholder="e.g. John Ssekandi – Field Supervisor">
+
+    <label class="am-label">ACTION TAKEN</label>
+    <select class="am-select" id="resAction">
+      <option value="">Select what was done...</option>
+      <option value="Waste cleared and disposed">Waste cleared and disposed</option>
+      <option value="Drain unblocked manually">Drain unblocked manually</option>
+      <option value="Drain unblocked with equipment">Drain unblocked with equipment</option>
+      <option value="Community warned and area cleaned">Community warned and area cleaned</option>
+      <option value="Waste collected and transported to disposal site">Waste collected and transported to disposal site</option>
+      <option value="Temporary barrier installed">Temporary barrier installed</option>
+      <option value="Other action taken">Other action taken</option>
+    </select>
+
+    <label class="am-label">ADDITIONAL NOTES</label>
+    <textarea class="am-note" id="resNotes" placeholder="Any observations, follow-up needed, equipment used, photos taken on ground..."></textarea>
+
+    <div style="background:var(--blue-light);border:1px solid #b8d4eb;border-radius:8px;padding:10px 12px;font-size:12px;color:var(--blue);margin-bottom:14px">
+      📍 <strong>Your GPS location will be recorded</strong> when you confirm — this logs where the officer was when marking the report resolved.
+    </div>
+
+    <div class="am-btns">
+      <button class="am-cancel" onclick="closeResolveModal()">Cancel</button>
+      <button class="am-confirm" onclick="confirmResolve()">✅ Confirm Resolution</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESOLUTION LOG VIEW (admin tab) -->
+<div id="view-reslog" class="main" style="flex-direction:column;overflow-y:auto;background:var(--bg)">
+  <div class="admin-wrap">
+    <div class="admin-hdr">
+      <div>
+        <div class="admin-title">📋 Resolution Log</div>
+        <div class="admin-sub">Full history of resolved reports — where, when, and by whom</div>
+      </div>
+      <button class="export-btn" onclick="exportResLog()">⬇️ Export Log CSV</button>
+    </div>
+    <div class="admin-table-wrap">
+      <div style="overflow-x:auto">
+        <table class="admin-table">
+          <thead><tr>
+            <th>Ref</th><th>Type</th><th>Location</th><th>Reported</th>
+            <th>Resolved</th><th>Resolved By</th><th>Action Taken</th><th>GPS at Resolution</th>
+          </tr></thead>
+          <tbody id="resLogTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MOBILE BOTTOM TAB BAR ── -->
+<div class="mobile-tabbar" id="mobileTabbar">
+  <div class="mobile-tabbar-inner">
+    <button class="mob-tab active" onclick="mobTab(this,'map')" id="mobt-map">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">🗺️</div>
+      <div class="mt-label">Map</div>
+    </button>
+    <button class="mob-tab" onclick="mobTab(this,'reports')" id="mobt-reports">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">📋</div>
+      <div class="mt-label">Reports</div>
+      <div class="mob-badge" id="mobBadge"></div>
+    </button>
+    <button class="mob-tab" onclick="mobTab(this,'stats')" id="mobt-stats">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">📊</div>
+      <div class="mt-label">Stats</div>
+    </button>
+    <button class="mob-tab" onclick="mobTab(this,'admin')" id="mobt-admin">
+      <div class="mob-tab-indicator"></div>
+      <div class="mt-icon">⚙️</div>
+      <div class="mt-label">Admin</div>
+    </button>
+  </div>
+</div>
+
+<!-- ── MOBILE PANELS ── -->
+
+<!-- Map panel -->
+<div class="mob-panel active" id="mob-map-panel">
+  <div id="mob-map" style="width:100%;height:100%;position:relative;">
+    <div class="mob-map-legend">
+      <div style="font-size:9.5px;color:var(--muted);font-family:var(--mono);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Legend</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><div style="width:10px;height:10px;border-radius:50%;background:#c0392b;flex-shrink:0"></div>Dumping</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><div style="width:10px;height:10px;border-radius:50%;background:#d4691e;flex-shrink:0"></div>Blocked</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:14px;height:3px;border-radius:2px;background:#3b82f6;flex-shrink:0"></div>Drain</div>
+    </div>
+  </div>
+</div>
+
+<!-- Reports panel -->
+<div class="mob-panel" id="mob-reports-panel">
+  <div class="mob-kpi-strip">
+    <div class="mob-kpi k-red"><div class="mob-kpi-num" id="m-kpi-dump">—</div><div class="mob-kpi-lbl">Dump Sites</div></div>
+    <div class="mob-kpi k-orange"><div class="mob-kpi-num" id="m-kpi-block">—</div><div class="mob-kpi-lbl">Blocked</div></div>
+    <div class="mob-kpi k-green"><div class="mob-kpi-num" id="m-kpi-res">—</div><div class="mob-kpi-lbl">Resolved</div></div>
+    <div class="mob-kpi k-blue"><div class="mob-kpi-num" id="m-kpi-new">—</div><div class="mob-kpi-lbl">New 24h</div></div>
+  </div>
+  <div class="mob-reports-wrap">
+    <div class="mob-filter-row">
+      <button class="mob-pill on" onclick="mobRepFilter(this,'open')">Open</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'progress')">🟠 In Progress</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'all')">All</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'high')">🔴 High</button>
+      <button class="mob-pill" onclick="mobRepFilter(this,'med')">🟠 Medium</button>
+    </div>
+    <div id="mob-rep-list"></div>
+  </div>
+</div>
+
+<!-- Stats panel -->
+<div class="mob-panel" id="mob-stats-panel">
+  <div style="padding:16px">
+    <div class="mob-section-label">Flood Risk by Zone</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+      <div id="mob-risk-bars"></div>
+    </div>
+    <div class="mob-section-label">Network Status</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:13px;color:var(--muted);line-height:2">
+      <div>📏 Total network: <strong style="color:var(--text)">~4.2 km</strong></div>
+      <div>🚧 Blocked (est.): <strong id="mob-blockedKm" style="color:var(--orange)">—</strong></div>
+      <div>✅ Clear: <strong style="color:var(--accent)">~3.1 km</strong></div>
+      <div>🔄 Last sync: <strong id="mob-lastSync" style="color:var(--text)">—</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin panel -->
+<div class="mob-panel" id="mob-admin-panel">
+  <div class="mob-admin-wrap">
+    <div class="mob-section-label">Summary</div>
+    <div class="mob-admin-stats">
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-total" style="color:var(--text)">—</div><div class="mob-as-lbl">Total Reports</div></div>
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-open" style="color:var(--warn)">—</div><div class="mob-as-lbl">Open Issues</div></div>
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-high" style="color:var(--orange)">—</div><div class="mob-as-lbl">High Severity</div></div>
+      <div class="mob-as"><div class="mob-as-num" id="m-adm-res" style="color:var(--accent)">—</div><div class="mob-as-lbl">Resolved</div></div>
+    </div>
+    <button onclick="exportCSV()" style="width:100%;padding:13px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px">⬇️ Export CSV for QGIS</button>
+    <div class="mob-section-label">All Reports</div>
+    <div id="mob-admin-list"></div>
+  </div>
+</div>
+
+<script>
+// ── PASSWORDS ──
+// Change this to your real password before handing over to the council
+const PASSWORDS = ['makindye2025', 'council2025'];
+
+function doLogin() {
+  const pw = document.getElementById('pwInput').value;
+  if (PASSWORDS.includes(pw)) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    sessionStorage.setItem('msc_auth', '1');
+    loadReports();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    const inp = document.getElementById('pwInput');
+    inp.classList.add('shake');
+    setTimeout(() => inp.classList.remove('shake'), 400);
+    inp.value = '';
+  }
+}
+
+function lockDashboard() {
+  sessionStorage.removeItem('msc_auth');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('pwInput').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+// Check if already authenticated this session
+if (sessionStorage.getItem('msc_auth') === '1') {
+  document.getElementById('loginScreen').classList.add('hidden');
+}
+
+// ── DATA ──
+let reports = [];
+let currentFilter = 'open';
+let admCurrentFilter = 'all';
+let unsubscribeListener = null; // Firebase real-time listener
+
+// Seed data — real field survey points, Namasuba-Lufuka
+const seedReports = [
+  { id:'RPT-F002', type:'block', sev:'high', loc:'Blocked drainage channel – CH02', lat:0.262976, lng:32.566465, desc:'Drainage channel blocked by solid waste. Overflow observed during rain.', date:Date.now()-3600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F004', type:'dump', sev:'high', loc:'Roadside dump near junction', lat:0.263242, lng:32.566504, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-7200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F005', type:'dump', sev:'med', loc:'Open waste pile along access path', lat:0.263039, lng:32.566191, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-10800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F006', type:'dump', sev:'high', loc:'Uncontrolled dump site', lat:0.262485, lng:32.566106, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-14400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F008', type:'block', sev:'high', loc:'Blocked drain – CH08', lat:0.262889, lng:32.566169, desc:'Partial to full blockage. Waste and vegetation mix. Upstream flooding risk.', date:Date.now()-18000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F011', type:'block', sev:'med', loc:'Partial blockage – CH11', lat:0.262796, lng:32.566417, desc:'Channel capacity reduced. Requires urgent clearance.', date:Date.now()-21600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F015', type:'block', sev:'high', loc:'Drain blockage – CH15', lat:0.261782, lng:32.56591, desc:'Drainage channel blocked by solid waste. Overflow observed during rain.', date:Date.now()-25200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F016', type:'dump', sev:'med', loc:'Waste accumulation near residences', lat:0.261609, lng:32.565917, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-28800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F018', type:'dump', sev:'low', loc:'Roadside illegal dumping', lat:0.262468, lng:32.566371, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-32400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F022', type:'block', sev:'med', loc:'Blocked channel – CH28', lat:0.262387, lng:32.566355, desc:'Partial to full blockage. Waste and vegetation mix. Upstream flooding risk.', date:Date.now()-36000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F023', type:'dump', sev:'med', loc:'Large waste pile near structure', lat:0.263156, lng:32.566043, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-39600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F028', type:'block', sev:'high', loc:'Blocked drain – CH29', lat:0.261613, lng:32.566186, desc:'Channel capacity reduced. Requires urgent clearance.', date:Date.now()-43200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F029', type:'block', sev:'med', loc:'Partially blocked – CH30', lat:0.262138, lng:32.566301, desc:'Drainage channel blocked by solid waste. Overflow observed during rain.', date:Date.now()-46800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F030', type:'block', sev:'high', loc:'Drain blockage – CH31', lat:0.260413, lng:32.565972, desc:'Partial to full blockage. Waste and vegetation mix. Upstream flooding risk.', date:Date.now()-50400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F031', type:'block', sev:'high', loc:'Blocked channel – CH22', lat:0.261062, lng:32.566097, desc:'Channel capacity reduced. Requires urgent clearance.', date:Date.now()-54000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F032', type:'dump', sev:'med', loc:'Mixed waste dump along road', lat:0.261089, lng:32.565812, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-57600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F033', type:'dump', sev:'med', loc:'Organic and plastic waste pile', lat:0.26124, lng:32.565848, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-61200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F035', type:'dump', sev:'low', loc:'Waste beside drainage channel', lat:0.260884, lng:32.565777, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-64800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F037', type:'dump', sev:'high', loc:'Dump site near open ground', lat:0.260617, lng:32.568071, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-68400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F038', type:'dump', sev:'low', loc:'Roadside dumping – south zone', lat:0.260111, lng:32.567795, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-72000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F041', type:'dump', sev:'high', loc:'Large mixed waste accumulation', lat:0.260111, lng:32.568098, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-75600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F042', type:'dump', sev:'low', loc:'Waste pile near footpath', lat:0.261169, lng:32.567893, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-79200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F044', type:'dump', sev:'low', loc:'Dump adjacent to drain', lat:0.261533, lng:32.567769, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-82800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F045', type:'dump', sev:'low', loc:'Open dumping – eastern section', lat:0.261551, lng:32.567626, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-86400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F046', type:'dump', sev:'high', loc:'Roadside waste – zone B', lat:0.260591, lng:32.568222, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-90000000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F047', type:'dump', sev:'low', loc:'Uncontrolled dump near market', lat:0.260111, lng:32.567555, desc:'Large accumulation of household and commercial waste. Mosquito breeding risk.', date:Date.now()-93600000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F048', type:'dump', sev:'low', loc:'Waste pile along access road', lat:0.261827, lng:32.567662, desc:'Roadside illegal dumping. Waste spilling toward drainage channel.', date:Date.now()-97200000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F049', type:'dump', sev:'low', loc:'Mixed refuse dump site', lat:0.261498, lng:32.567626, desc:'Uncontrolled waste pile. Present for several weeks per community report.', date:Date.now()-100800000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F050', type:'dump', sev:'low', loc:'Illegal dump – residential fringe', lat:0.262445, lng:32.567496, desc:'Mixed plastic, organic and construction waste. High flood risk in rainy season.', date:Date.now()-104400000, status:'open', contact:'', photos:[] },
+  { id:'RPT-F054', type:'dump', sev:'low', loc:'Large waste accumulation – field verified', lat:0.262726, lng:32.567434, desc:'Mixed solid waste including plastics and organic matter. Field verified.', date:Date.now()-108000000, status:'open', contact:'', photos:[] }
+];
+
+// ── MAP ──
+const map = L.map('map', { zoomControl: false }).setView([0.261719, 32.56679], 15);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+const basemaps = {
+  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution:'© Esri', maxZoom:19 }),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution:'© OpenTopoMap', maxZoom:17 }),
+};
+basemaps.street.addTo(map);
+
+// Drainage network lines — add your digitised polylines here from QGIS GeoJSON export
+const drainageLines = [];
+const channelLayer = L.layerGroup();
+drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(channelLayer));
+channelLayer.addTo(map);
+
+const mLayers = { dump: L.layerGroup().addTo(map), block: L.layerGroup().addTo(map), heat: L.layerGroup().addTo(map) };
+const allLayers = { dump: mLayers.dump, block: mLayers.block, channels: channelLayer, heat: mLayers.heat };
+
+function makeIcon(type, sev, isNew) {
+  const cols = { dump:{high:'#c0392b',med:'#d4691e',low:'#5dade2'}, block:{high:'#c0392b',med:'#d4691e',low:'#f4d03f'}, flood:{high:'#1a5276',med:'#2e86c1',low:'#5dade2'}, other:{high:'#7d3c98',med:'#9b59b6',low:'#c39bd3'}, resolved:{high:'#1a6b3a',med:'#1a6b3a',low:'#1a6b3a'} };
+  const ems = { dump:'🗑', block:'🚧', flood:'🌊', other:'⚠️', resolved:'✅' };
+  const col = cols[type]?.[sev] || '#888';
+  const ring = isNew ? `border:2.5px solid #fff;box-shadow:0 0 0 3px ${col}55,0 3px 10px rgba(0,0,0,.25)` : `border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.2)`;
+  return L.divIcon({ className:'', html:`<div style="background:${col};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;${ring}">${ems[type]||'📍'}</div>`, iconSize:[32,32], iconAnchor:[16,16] });
+}
+
+function rebuildMarkers() {
+  Object.values(mLayers).forEach(l => l.clearLayers());
+  const heatPts = [];
+  reports.forEach(r => {
+    if (!r.lat || !r.lng) return;
+    const isNew = Date.now()-r.date < 86400000;
+    const tgt = mLayers[r.type] || mLayers.dump;
+    const iconType = r.type;
+    const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
+    const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
+    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}${isNew&&r.status==='open'?' <span class="new-tag">NEW</span>':''}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)} · ${r.id}</div>${r.desc?`<div style="margin-top:6px;font-size:11px;color:var(--text2);max-width:200px;line-height:1.5">${r.desc.slice(0,120)}${r.desc.length>120?'…':''}</div>`:''}<span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>${r.photos&&r.photos[0]?`<div style="margin-top:8px"><img src="${r.photos[0]}" onclick="openPhoto('${r.photos[0]}')" style="width:100%;border-radius:7px;cursor:pointer;max-height:120px;object-fit:cover" title="Click to enlarge"></div>`:''}`, {maxWidth:280});
+    m.addTo(tgt);
+    if (r.status!=='resolved') heatPts.push([r.lat, r.lng, r.sev==='high'?1:r.sev==='med'?.6:.3]);
+  });
+  if (heatPts.length) L.heatLayer(heatPts, {radius:35,blur:25,maxZoom:16,gradient:{0.3:'#f9e79f',0.6:'#f97316',1:'#ef4444'}}).addTo(mLayers.heat);
+}
+
+function toggleLayer(sw, key) {
+  sw.classList.toggle('on');
+  const l = allLayers[key]; if (!l) return;
+  sw.classList.contains('on') ? l.addTo(map) : map.removeLayer(l);
+}
+function setBasemap(key, btn) {
+  document.querySelectorAll('.mtb-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  Object.values(basemaps).forEach(t=>map.removeLayer(t));
+  basemaps[key].addTo(map);
+}
+
+// ── HELPERS ──
+function timeAgo(ts) {
+  const s = Math.floor((Date.now()-ts)/1000);
+  if (s<60) return 'just now';
+  if (s<3600) return Math.floor(s/60)+'m ago';
+  if (s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+// ── RENDER ──
+function updateKPIs() {
+  const open = reports.filter(r=>r.status==='open');
+  const res = reports.filter(r=>r.status==='resolved');
+  const dumps = open.filter(r=>r.type==='dump');
+  const blocks = open.filter(r=>r.type==='block');
+  const newR = open.filter(r=>Date.now()-r.date<86400000);
+  document.getElementById('kpi-dump').textContent = dumps.length;
+  document.getElementById('kpi-block').textContent = blocks.length;
+  document.getElementById('kpi-res').textContent = res.length;
+  document.getElementById('kpi-new').textContent = newR.length;
+  document.getElementById('liveCount').textContent = reports.length+' report'+(reports.length!==1?'s':'');
+  document.getElementById('openBadge').textContent = open.length;
+  document.getElementById('lc-dump').textContent = ' · '+dumps.length;
+  document.getElementById('lc-block').textContent = ' · '+blocks.length;
+  document.getElementById('blockedKm').textContent = Math.min(blocks.length*.15,1.1).toFixed(1)+' km est.';
+  document.getElementById('lastSync').textContent = new Date().toLocaleTimeString();
+
+  const riskColors = s => s>65?'var(--warn)':s>40?'var(--orange)':'var(--accent-mid)';
+  const riskLabel = s => s>65?'HIGH':s>40?'MED':'LOW';
+  const zones = [
+    {name:'Zone A – Namasuba', score:Math.min(100,dumps.length*15+40)},
+    {name:'Zone B – Lufuka', score:Math.min(100,blocks.length*18+20)},
+    {name:'Zone C – Market', score:Math.min(100,(dumps.length+blocks.length)*10+15)},
+    {name:'Zone D – Residential', score:Math.min(100,res.length*3+10)},
+  ];
+  document.getElementById('riskBars').innerHTML = zones.map(z=>`
+    <div class="risk-item">
+      <div class="risk-top"><span style="font-size:11.5px">${z.name}</span><span class="risk-pct" style="color:${riskColors(z.score)}">${riskLabel(z.score)}</span></div>
+      <div class="risk-bar"><div class="risk-fill" style="width:${z.score}%;background:${riskColors(z.score)}"></div></div>
+    </div>`).join('');
+
+  document.getElementById('adm-total').textContent = reports.length;
+  document.getElementById('adm-open').textContent = open.length;
+  document.getElementById('adm-high').textContent = reports.filter(r=>r.sev==='high'&&r.status==='open').length;
+  document.getElementById('adm-res').textContent = res.length;
+}
+
+function renderRightCol() {
+  const list = (currentFilter==='all'
+    ? [...reports]
+    : reports.filter(r=>r.status==='open'||r.status==='progress')
+  ).sort((a,b)=>b.date-a.date);
+  const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
+  if (!list.length) {
+    document.getElementById('rcBody').innerHTML = `<div style="text-align:center;padding:40px 16px;color:var(--muted)"><div style="font-size:32px;margin-bottom:10px">${currentFilter==='open'?'🎉':'📋'}</div><div style="font-size:13px">${currentFilter==='open'?'No open issues!':'No resolved reports yet.'}</div></div>`;
+    return;
+  }
+  document.getElementById('rcBody').innerHTML = list.map(r => {
+    const isNew = Date.now()-r.date<86400000&&r.status==='open';
+    const badge = r.status==='progress'
+      ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
+      : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    const photoStrip = (r.photos && r.photos.length > 0)
+      ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')" title="View photo">`).join('')}</div>`
+      : '';
+    return `<div class="rep-card sev-${r.sev}" onclick="flyTo(${r.lat},${r.lng})">
+      <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
+      <div class="rep-loc">📍 ${r.loc}</div>
+      <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${r.assignedTo ? `<div style="margin-top:5px;font-size:11px"><span class="assigned-tag">👤 ${r.assignedTo}</span>${r.assignPriority ? `<span style="font-size:10px;color:var(--muted);margin-left:6px">${r.assignPriority==='urgent'?'🔴 Urgent':r.assignPriority==='normal'?'🟠 Normal':'🟢 Scheduled'}</span>` : ''}</div>` : ''}
+      ${r.assignNote ? `<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-style:italic">"${r.assignNote}"</div>` : ''}
+      ${r.status==='progress' ? '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:60%"></div></div>' : ''}
+      ${photoStrip}
+      ${r.status!=='resolved'?`<div class="rep-actions">
+        <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
+        ${r.status==='open'?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ In Progress</button>`:''}
+        <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderAdminTable() {
+  // Date range filter
+  const fromVal = document.getElementById('dateFrom')?.value;
+  const toVal = document.getElementById('dateTo')?.value;
+  const fromTs = fromVal ? new Date(fromVal).setHours(0,0,0,0) : null;
+  const toTs = toVal ? new Date(toVal).setHours(23,59,59,999) : null;
+
+  let filtered = admCurrentFilter==='all' ? [...reports]
+    : admCurrentFilter==='progress' ? reports.filter(r=>r.status==='progress')
+    : reports.filter(r=>r.sev===admCurrentFilter);
+
+  // Apply date range
+  if (fromTs) filtered = filtered.filter(r => r.date >= fromTs);
+  if (toTs) filtered = filtered.filter(r => r.date <= toTs);
+
+  const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding Risk',other:'Other Hazard'};
+  const sevStyle = {high:`background:var(--warn-light);color:var(--warn)`,med:`background:var(--orange-light);color:var(--orange)`,low:`background:var(--accent-light);color:var(--accent)`};
+  const statusBadge = s => {
+    if (s==='progress') return `<span class="tbl-badge rb-progress">IN PROGRESS</span>`;
+    return `<span class="tbl-badge" style="background:var(--warn-light);color:var(--warn)">OPEN</span>`;
+  };
+
+  document.getElementById('admTbody').innerHTML = !filtered.length
+    ? `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)">No reports found for selected filters.</td></tr>`
+    : filtered.sort((a,b)=>b.date-a.date).map(r=>`
+    <tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.id}</td>
+      <td>${tNames[r.type]||r.type}</td>
+      <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.loc}">${r.loc}</td>
+      <td><span class="tbl-badge" style="${sevStyle[r.sev]||''}">${r.sev?.toUpperCase()}</span></td>
+      <td style="font-size:11px">${r.assignedTo ? `<span class="assigned-tag">👤 ${r.assignedTo.split('–')[0].trim()}</span>` : '<span style="color:var(--muted)">Unassigned</span>'}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.date)}</td>
+      <td>
+        ${r.lat?`<button class="tbl-act" onclick="flyAndSwitch(${r.lat},${r.lng})">🗺 View</button>`:''}
+        ${r.status==='open'?`<button class="tbl-act" onclick="markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
+        ${r.status!=='resolved'?`<button class="tbl-act res" onclick="resolveReport('${r.id}')">✅ Resolve</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+
+function refresh() { updateKPIs(); renderRightCol(); renderAdminTable(); rebuildMarkers(); }
+
+// ── STORAGE ──
+// ── FIREBASE DATA FUNCTIONS ──
+async function loadReports() {
+  if (!window._fbReady) {
+    // Wait for Firebase to be ready
+    await new Promise(res => window.addEventListener('firebase-ready', res, { once: true }));
+  }
+
+  const db = window._db;
+  const col = window._fbCollection(db, 'reports');
+
+  // Check if collection is empty — if so, seed it
+  const snapshot = await window._fbGetDocs(col);
+  if (snapshot.empty) {
+    console.log('Seeding Firebase with initial data...');
+    for (const r of seedReports) {
+      await window._fbAddDoc(col, r);
+    }
+  }
+
+  // Set up real-time listener — updates dashboard instantly when any report changes
+  if (unsubscribeListener) unsubscribeListener(); // cancel any existing listener
+  unsubscribeListener = window._fbOnSnapshot(col, (snap) => {
+    reports = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    refresh();
+    document.getElementById('lastSync').textContent = new Date().toLocaleTimeString();
+    const mob = document.getElementById('mob-lastSync');
+    if (mob) mob.textContent = new Date().toLocaleTimeString();
+  });
+}
+
+// Resolution modal state
+let resolveTargetId = null;
+
+function resolveReport(id) {
+  resolveTargetId = id;
+  const r = reports.find(r => r.id === id);
+  if (!r) return;
+  document.getElementById('resModalRef').textContent = id + ' · ' + r.loc;
+  document.getElementById('resOfficer').value = '';
+  document.getElementById('resAction').value = '';
+  document.getElementById('resNotes').value = '';
+  document.getElementById('resolveModal').classList.add('open');
+}
+
+async function confirmResolve() {
+  const officer = document.getElementById('resOfficer').value.trim();
+  const action = document.getElementById('resAction').value.trim();
+  if (!officer) { alert('Please enter the name of the officer who resolved this.'); return; }
+  if (!action) { alert('Please describe what action was taken.'); return; }
+
+  const r = reports.find(r => r.id === resolveTargetId);
+  if (!r || !r._docId) return;
+
+  // Get resolver's current location
+  let resLat = null, resLng = null;
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+    );
+    resLat = pos.coords.latitude;
+    resLng = pos.coords.longitude;
+  } catch { /* location optional */ }
+
+  const btn = document.querySelector('#resolveModal .am-confirm');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    // Save resolution record to a separate 'resolved' collection before deleting
+    const resRecord = {
+      originalId: r.id,
+      type: r.type,
+      sev: r.sev,
+      loc: r.loc,
+      lat: r.lat,
+      lng: r.lng,
+      reportedDate: r.date,
+      resolvedDate: Date.now(),
+      resolvedBy: officer,
+      actionTaken: action,
+      notes: document.getElementById('resNotes').value.trim(),
+      resolverLat: resLat,
+      resolverLng: resLng,
+    };
+    // Save to resolved_log collection
+    await window._fbAddDoc(window._fbCollection(window._db, 'resolved_log'), resRecord);
+    // Delete from active reports
+    await window._fbDeleteDoc(window._fbDoc(window._db, 'reports', r._docId));
+    document.getElementById('resolveModal').classList.remove('open');
+    resolveTargetId = null;
+  } catch(e) {
+    console.error('Resolve error:', e);
+    alert('Could not save. Check your connection.');
+  } finally {
+    btn.textContent = '✅ Confirm Resolution'; btn.disabled = false;
+  }
+}
+
+function closeResolveModal() {
+  document.getElementById('resolveModal').classList.remove('open');
+  resolveTargetId = null;
+}
+// ── IN-PROGRESS LOGIC ──
+async function markInProgress(id) {
+  const r = reports.find(r => r.id === id);
+  if (!r || !r._docId) return;
+  try {
+    await window._fbUpdateDoc(window._fbDoc(window._db, 'reports', r._docId), {
+      status: 'progress',
+      progressAt: Date.now(),
+    });
+  } catch(e) { alert('Could not update. Check your connection.'); }
+}
+
+// ── DATE FILTER LOGIC ──
+function clearDateFilter() {
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  renderAdminTable();
+}
+
+// ── ASSIGNMENT LOGIC ──
+let assignTargetId = null;
+let assignPriority = null;
+
+function assignReport(id) {
+  assignTargetId = id;
+  assignPriority = null;
+  const r = reports.find(r => r.id === id);
+  document.getElementById('amRef').textContent = id + (r ? ' · ' + r.loc : '');
+  document.getElementById('amTeam').value = r?.assignedTo || '';
+  document.getElementById('amNote').value = r?.assignNote || '';
+  // Reset priority buttons
+  document.querySelectorAll('.am-pri-opt').forEach(b => b.classList.remove('sel-urgent','sel-normal','sel-low','sel-high','sel-med'));
+  if (r?.assignPriority) amPriority(
+    document.querySelector(`.am-pri-opt[onclick*="${r.assignPriority}"]`), r.assignPriority
+  );
+  document.getElementById('assignModal').classList.add('open');
+}
+
+function amPriority(el, val) {
+  document.querySelectorAll('.am-pri-opt').forEach(b =>
+    b.classList.remove('sel-high','sel-med','sel-low','sel-urgent','sel-normal')
+  );
+  if (!el) return;
+  const cls = val === 'urgent' ? 'sel-high' : val === 'normal' ? 'sel-med' : 'sel-low';
+  el.classList.add(cls);
+  assignPriority = val;
+}
+
+function closeAssignModal() {
+  document.getElementById('assignModal').classList.remove('open');
+  assignTargetId = null;
+  assignPriority = null;
+}
+
+async function confirmAssign() {
+  const team = document.getElementById('amTeam').value;
+  if (!team) { alert('Please select a team or officer.'); return; }
+  if (!assignPriority) { alert('Please select a priority level.'); return; }
+
+  const note = document.getElementById('amNote').value.trim();
+  const r = reports.find(r => r.id === assignTargetId);
+  if (!r || !r._docId) return;
+
+  const btn = document.querySelector('.am-confirm');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    await window._fbUpdateDoc(window._fbDoc(window._db, 'reports', r._docId), {
+      assignedTo: team,
+      assignPriority: assignPriority,
+      assignNote: note,
+      assignedAt: Date.now(),
+      assignedBy: 'Council Officer',
+    });
+    closeAssignModal();
+    // Real-time listener will refresh automatically
+  } catch(e) {
+    console.error('Assign error:', e);
+    alert('Could not save assignment. Check your connection.');
+  } finally {
+    btn.textContent = '✅ Confirm Assignment'; btn.disabled = false;
+  }
+}
+function flyTo(lat, lng) {
+  if (!lat||!lng) return;
+  switchView('dashboard', document.querySelectorAll('.nav-tab')[0]);
+  setTimeout(()=>{ map.flyTo([lat,lng],17,{duration:1}); map.invalidateSize(); },150);
+}
+function flyAndSwitch(lat,lng) { flyTo(lat,lng); }
+function rcTab(el,tab) {
+  document.querySelectorAll('.rc-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active'); currentFilter=tab; renderRightCol();
+}
+function admFilter(el,val) {
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on'); admCurrentFilter=val; renderAdminTable();
+}
+function switchView(view,btn) {
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.main').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if(view==='dashboard') setTimeout(()=>map.invalidateSize(),120);
+  if(view==='reslog') loadResolutionLog();
+}
+function exportCSV() {
+  const hdr = ['ID','Type','Severity','Location','Latitude','Longitude','Status','Description','Contact','Date'];
+  const rows = reports.map(r=>[r.id,r.type,r.sev,`"${r.loc}"`,r.lat||'',r.lng||'',r.status,`"${(r.desc||'').replace(/"/g,"'")}"`,r.contact||'',new Date(r.date).toISOString()]);
+  const csv = [hdr,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'namasuba_reports_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// ── RESOLUTION LOG ──
+let resolvedRecords = [];
+
+async function loadResolutionLog() {
+  if (!window._fbReady) return;
+  try {
+    const snap = await window._fbGetDocs(window._fbCollection(window._db, 'resolved_log'));
+    resolvedRecords = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    renderResLog();
+  } catch(e) { console.error('Could not load resolution log:', e); }
+}
+
+function renderResLog() {
+  const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding Risk',other:'Other Hazard'};
+  const tbody = document.getElementById('resLogTbody');
+  if (!tbody) return;
+  if (!resolvedRecords.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)">No resolved reports yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = resolvedRecords.sort((a,b)=>b.resolvedDate-a.resolvedDate).map(r => {
+    const gpsLink = (r.resolverLat && r.resolverLng)
+      ? `<a href="https://maps.google.com/?q=${r.resolverLat},${r.resolverLng}" target="_blank" style="color:var(--accent);font-family:var(--mono);font-size:10.5px">📍 View on Google Maps</a>`
+      : '<span style="color:var(--muted);font-size:11px">Not captured</span>';
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.originalId}</td>
+      <td style="font-size:12.5px">${tNames[r.type]||r.type}</td>
+      <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px" title="${r.loc}">${r.loc}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.reportedDate)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${new Date(r.resolvedDate).toLocaleDateString()}</td>
+      <td style="font-size:12px;font-weight:600">${r.resolvedBy}</td>
+      <td style="font-size:12px;max-width:160px">${r.actionTaken}</td>
+      <td>${gpsLink}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportResLog() {
+  const hdr = ['Original ID','Type','Location','Reported Date','Resolved Date','Resolved By','Action Taken','Notes','Resolver Lat','Resolver Lng'];
+  const rows = resolvedRecords.map(r => [
+    r.originalId, r.type, `"${r.loc}"`,
+    new Date(r.reportedDate).toISOString(),
+    new Date(r.resolvedDate).toISOString(),
+    `"${r.resolvedBy}"`, `"${r.actionTaken}"`,
+    `"${(r.notes||'').replace(/"/g,"'")}"`,
+    r.resolverLat||'', r.resolverLng||''
+  ]);
+  const csv = [hdr,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'resolution_log_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// ── PHOTO LIGHTBOX ──
+function openPhoto(url) {
+  document.getElementById('photoModalImg').src = url;
+  document.getElementById('photoModal').classList.add('open');
+}
+function closePhotoModal() {
+  document.getElementById('photoModal').classList.remove('open');
+}
+
+// Auto-load if already authenticated
+if (sessionStorage.getItem('msc_auth')==='1') loadReports();
+
+// ── MOBILE MAP ──
+let mobMap = null;
+let mobMapInitialized = false;
+
+function initMobileMap() {
+  if (mobMapInitialized) return;
+  mobMapInitialized = true;
+  mobMap = L.map('mob-map', { zoomControl: true }).setView([0.261719, 32.56679], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(mobMap);
+  drainageLines.forEach(pts => L.polyline(pts, { color:'#3b82f6', weight:3, opacity:.75, dashArray:'8,5' }).addTo(mobMap));
+  rebuildMobileMarkers();
+}
+
+function rebuildMobileMarkers() {
+  if (!mobMap) return;
+  mobMap.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.HeatLayer) mobMap.removeLayer(l); });
+  const heatPts = [];
+  reports.forEach(r => {
+    if (!r.lat || !r.lng) return;
+    const isNew = Date.now()-r.date < 86400000;
+    const iconType = r.status==='resolved' ? 'resolved' : r.type;
+    const m = L.marker([r.lat, r.lng], { icon: makeIcon(iconType, r.sev, isNew) });
+    const sevC = {high:'var(--warn)',med:'var(--orange)',low:'var(--accent-mid)'};
+    m.bindPopup(`<div class="pu-title">${({dump:'🗑️ Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other',resolved:'✅ Resolved'}[r.type]||r.type)}</div><div class="pu-sub">📍 ${r.loc}</div><div class="pu-sub">🕐 ${timeAgo(r.date)}</div><span class="pu-badge" style="background:${sevC[r.sev]}22;color:${sevC[r.sev]}">${r.sev?.toUpperCase()}</span>`, {maxWidth:220});
+    m.addTo(mobMap);
+    if (r.status!=='resolved') heatPts.push([r.lat, r.lng, r.sev==='high'?1:r.sev==='med'?.6:.3]);
+  });
+  if (heatPts.length) L.heatLayer(heatPts, {radius:35,blur:25,maxZoom:16,gradient:{0.3:'#f9e79f',0.6:'#f97316',1:'#ef4444'}}).addTo(mobMap);
+}
+
+// ── MOBILE TAB SWITCHING ──
+let mobCurrentTab = 'map';
+let mobRepCurrentFilter = 'open';
+
+function mobTab(btn, tab) {
+  document.querySelectorAll('.mob-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.mob-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('mob-'+tab+'-panel').classList.add('active');
+  mobCurrentTab = tab;
+  if (tab === 'map') {
+    initMobileMap();
+    setTimeout(() => mobMap && mobMap.invalidateSize(), 120);
+  }
+  if (tab === 'reports') renderMobileReports();
+  if (tab === 'stats') renderMobileStats();
+  if (tab === 'admin') renderMobileAdmin();
+}
+
+function renderMobileReports() {
+  const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
+  let list;
+  if (mobRepCurrentFilter === 'open') list = reports.filter(r=>r.status==='open');
+  else if (mobRepCurrentFilter === 'all') list = [...reports];
+  else if (mobRepCurrentFilter === 'progress') list = reports.filter(r=>r.status==='progress');
+  else list = reports.filter(r=>r.sev===mobRepCurrentFilter&&r.status==='open');
+  list = list.sort((a,b)=>b.date-a.date);
+
+  if (!list.length) {
+    document.getElementById('mob-rep-list').innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">📋</div>No reports found.</div>`;
+    return;
+  }
+  document.getElementById('mob-rep-list').innerHTML = list.map(r => {
+    const isNew = Date.now()-r.date<86400000&&r.status==='open';
+    const badge = r.status==='progress'
+      ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
+      : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    const mobPhotoStrip = (r.photos && r.photos.length > 0)
+      ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')">`).join('')}</div>`
+      : '';
+    return `<div class="rep-card sev-${r.sev}" onclick="mobFlyTo(${r.lat},${r.lng})" style="margin-bottom:8px">
+      <div class="rep-top"><div class="rep-type">${tNames[r.type]||r.type}${isNew?'<span class="new-tag">NEW</span>':''}</div>${badge}</div>
+      <div class="rep-loc">📍 ${r.loc}</div>
+      <div class="rep-meta"><span>🕐 ${timeAgo(r.date)}</span><span>${r.id}</span></div>
+      ${r.assignedTo ? `<div style="margin-top:5px;font-size:11px"><span class="assigned-tag">👤 ${r.assignedTo}</span></div>` : ''}
+      ${r.status==='progress' ? '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:60%"></div></div>' : ''}
+      ${mobPhotoStrip}
+      ${r.status!=='resolved'?`<div class="rep-actions">
+        <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
+        ${r.status==='open'?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
+        <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function mobRepFilter(btn, filter) {
+  document.querySelectorAll('.mob-filter-row .mob-pill').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  mobRepCurrentFilter = filter;
+  renderMobileReports();
+}
+
+function renderMobileStats() {
+  const open = reports.filter(r=>r.status==='open');
+  const blocks = open.filter(r=>r.type==='block');
+  document.getElementById('mob-blockedKm').textContent = Math.min(blocks.length*.15,1.1).toFixed(1)+' km est.';
+  document.getElementById('mob-lastSync').textContent = new Date().toLocaleTimeString();
+  const riskColors = s => s>65?'var(--warn)':s>40?'var(--orange)':'var(--accent-mid)';
+  const riskLabel = s => s>65?'HIGH':s>40?'MED':'LOW';
+  const dumps = open.filter(r=>r.type==='dump');
+  const zones = [
+    {name:'Zone A – Namasuba', score:Math.min(100,dumps.length*15+40)},
+    {name:'Zone B – Lufuka', score:Math.min(100,blocks.length*18+20)},
+    {name:'Zone C – Market', score:Math.min(100,(dumps.length+blocks.length)*10+15)},
+    {name:'Zone D – Residential', score:Math.min(100,reports.filter(r=>r.status==='resolved').length*3+10)},
+  ];
+  document.getElementById('mob-risk-bars').innerHTML = zones.map(z=>`
+    <div class="risk-item">
+      <div class="risk-top"><span style="font-size:12px">${z.name}</span><span class="risk-pct" style="color:${riskColors(z.score)}">${riskLabel(z.score)}</span></div>
+      <div class="risk-bar"><div class="risk-fill" style="width:${z.score}%;background:${riskColors(z.score)}"></div></div>
+    </div>`).join('');
+}
+
+function renderMobileAdmin() {
+  const open = reports.filter(r=>r.status==='open');
+  const res = reports.filter(r=>r.status==='resolved');
+  document.getElementById('m-adm-total').textContent = reports.length;
+  document.getElementById('m-adm-open').textContent = open.length;
+  document.getElementById('m-adm-high').textContent = reports.filter(r=>r.sev==='high'&&r.status==='open').length;
+  document.getElementById('m-adm-res').textContent = res.length;
+  const tNames = {dump:'Illegal Dumping',block:'Blocked Drain',flood:'Flooding',other:'Other'};
+  document.getElementById('mob-admin-list').innerHTML = reports.sort((a,b)=>b.date-a.date).map(r=>`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:600">${tNames[r.type]||r.type}</div>
+        <span class="rep-badge rb-${r.sev}" style="font-size:9.5px;padding:2px 8px;border-radius:99px;font-family:var(--mono);font-weight:600">${r.sev?.toUpperCase()}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:3px">📍 ${r.loc}</div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">${r.id} · ${timeAgo(r.date)}</div>
+      ${r.status==='open'?`<button onclick="resolveReport('${r.id}')" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer">✅ Mark as Resolved</button>`:`<span style="font-size:11px;color:var(--blue);font-family:var(--mono)">✅ RESOLVED</span>`}
+    </div>`).join('');
+}
+
+function mobFlyTo(lat, lng) {
+  if (!lat||!lng) return;
+  initMobileMap();
+  mobTab(document.getElementById('mobt-map'), 'map');
+  setTimeout(()=>{ mobMap.flyTo([lat,lng],17,{duration:1}); mobMap.invalidateSize(); },200);
+}
+
+// Override refresh to also update mobile KPIs and badge
+const _origRefresh = refresh;
+// Extend refresh to update mobile elements too
+function refresh() {
+  updateKPIs(); renderRightCol(); renderAdminTable(); rebuildMarkers();
+  // Mobile KPIs
+  const open = reports.filter(r=>r.status==='open');
+  const dumps = open.filter(r=>r.type==='dump');
+  const blocks = open.filter(r=>r.type==='block');
+  const res = reports.filter(r=>r.status==='resolved');
+  const newR = open.filter(r=>Date.now()-r.date<86400000);
+  const setT = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  setT('m-kpi-dump', dumps.length);
+  setT('m-kpi-block', blocks.length);
+  setT('m-kpi-res', res.length);
+  setT('m-kpi-new', newR.length);
+  // Badge on reports tab
+  const badge = document.getElementById('mobBadge');
+  if (badge) { badge.textContent = open.length; badge.classList.toggle('show', open.length>0); }
+  // Re-render active mobile panel
+  if (mobCurrentTab==='reports') renderMobileReports();
+  if (mobCurrentTab==='stats') renderMobileStats();
+  if (mobCurrentTab==='admin') renderMobileAdmin();
+  if (mobCurrentTab==='map') rebuildMobileMarkers();
+}
+
+// ── RESPONSIVE: show/hide mobile vs desktop ──
+function applyLayout() {
+  const isMobile = window.innerWidth < 768;
+  document.getElementById('mobileTabbar').style.display = isMobile ? 'block' : 'none';
+  document.querySelectorAll('.mob-panel').forEach(p => {
+    p.style.display = isMobile ? '' : 'none';
+  });
+  document.querySelector('.shell').style.display = isMobile ? 'none' : 'grid';
+  if (isMobile && mobCurrentTab==='map') {
+    initMobileMap();
+    setTimeout(()=> mobMap && mobMap.invalidateSize(), 200);
+  }
+}
+window.addEventListener('resize', applyLayout);
+applyLayout();
+
+// On mobile, also init map when first switching to map tab
+if (window.innerWidth < 768) {
+  initMobileMap();
+}
+</script>
+
+<style>
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 767px) {
+  html, body { overflow: auto; }
+
+  /* Show mobile bar, hide desktop shell */
+  .mobile-tabbar { display: block !important; }
+  .shell { display: none !important; }
+  .mob-panel { display: none; }
+  .mob-panel.active { display: block !important; }
+
+  /* Login screen still works on mobile */
+  .login-screen { padding: 16px; }
+  .login-box { padding: 28px 22px; }
+  .login-title { font-size: 18px; }
+
+  /* Rep cards look good on mobile */
+  .rep-card { font-size: 13px; }
+}
+
+@media (min-width: 768px) {
+  .mobile-tabbar { display: none !important; }
+  .mob-panel { display: none !important; }
+  .shell { display: grid !important; }
+}
+</style>
+</body>
+</html>
