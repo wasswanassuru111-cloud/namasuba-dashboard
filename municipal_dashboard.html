@@ -998,9 +998,11 @@ function updateKPIs() {
 }
 
 function renderRightCol() {
+  // Treat missing/null/undefined status as 'open' — handles legacy Firebase docs
+  const isOpen = r => !r.status || r.status==='open' || r.status==='progress';
   const list = (currentFilter==='all'
     ? [...reports]
-    : reports.filter(r=>r.status==='open'||r.status==='progress')
+    : reports.filter(r => isOpen(r))
   ).sort((a,b)=>b.date-a.date);
   const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
   if (!list.length) {
@@ -1012,6 +1014,7 @@ function renderRightCol() {
     const badge = r.status==='progress'
       ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
       : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    // Note: missing/undefined status treated as open — badge shows severity colour
     const photoStrip = (r.photos && r.photos.length > 0)
       ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')" title="View photo">`).join('')}</div>`
       : '';
@@ -1025,7 +1028,7 @@ function renderRightCol() {
       ${photoStrip}
       ${r.status!=='resolved'?`<div class="rep-actions">
         <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
-        ${r.status==='open'?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ In Progress</button>`:''}
+        ${(!r.status||r.status==='open')?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ In Progress</button>`:''}
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
       </div>`:''}
     </div>`;
@@ -1039,6 +1042,7 @@ function renderAdminTable() {
   const fromTs = fromVal ? new Date(fromVal).setHours(0,0,0,0) : null;
   const toTs = toVal ? new Date(toVal).setHours(23,59,59,999) : null;
 
+  const isOpenStatus = r => !r.status || r.status==='open' || r.status==='progress';
   let filtered = admCurrentFilter==='all' ? [...reports]
     : admCurrentFilter==='progress' ? reports.filter(r=>r.status==='progress')
     : reports.filter(r=>r.sev===admCurrentFilter);
@@ -1052,6 +1056,7 @@ function renderAdminTable() {
   const statusBadge = s => {
     if (s==='progress') return `<span class="tbl-badge rb-progress">IN PROGRESS</span>`;
     return `<span class="tbl-badge" style="background:var(--warn-light);color:var(--warn)">OPEN</span>`;
+    // missing/undefined status treated as OPEN
   };
 
   document.getElementById('admTbody').innerHTML = !filtered.length
@@ -1067,8 +1072,8 @@ function renderAdminTable() {
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${timeAgo(r.date)}</td>
       <td>
         ${r.lat?`<button class="tbl-act" onclick="flyAndSwitch(${r.lat},${r.lng})">🗺 View</button>`:''}
-        ${r.status==='open'?`<button class="tbl-act" onclick="markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
-        ${r.status!=='resolved'?`<button class="tbl-act res" onclick="resolveReport('${r.id}')">✅ Resolve</button>`:''}
+        ${(!r.status||r.status==='open')?`<button class="tbl-act" onclick="markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
+        ${(r.status!=='resolved')?`<button class="tbl-act res" onclick="resolveReport('${r.id}')">✅ Resolve</button>`:''}
       </td>
     </tr>`).join('');
 }
@@ -1098,7 +1103,12 @@ async function loadReports() {
   // Set up real-time listener — updates dashboard instantly when any report changes
   if (unsubscribeListener) unsubscribeListener(); // cancel any existing listener
   unsubscribeListener = window._fbOnSnapshot(col, (snap) => {
-    reports = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    reports = snap.docs.map(d => {
+      const data = d.data();
+      // Normalise status — treat missing/undefined as 'open'
+      if (!data.status) data.status = 'open';
+      return { ...data, _docId: d.id };
+    });
     refresh();
     document.getElementById('lastSync').textContent = new Date().toLocaleTimeString();
     const mob = document.getElementById('mob-lastSync');
@@ -1410,10 +1420,11 @@ function mobTab(btn, tab) {
 function renderMobileReports() {
   const tNames = {dump:'🗑️ Illegal Dumping',block:'🚧 Blocked Drain',flood:'🌊 Flooding',other:'⚠️ Other'};
   let list;
-  if (mobRepCurrentFilter === 'open') list = reports.filter(r=>r.status==='open');
+  const mobIsOpen = r => !r.status || r.status==='open' || r.status==='progress';
+  if (mobRepCurrentFilter === 'open') list = reports.filter(r => mobIsOpen(r));
   else if (mobRepCurrentFilter === 'all') list = [...reports];
   else if (mobRepCurrentFilter === 'progress') list = reports.filter(r=>r.status==='progress');
-  else list = reports.filter(r=>r.sev===mobRepCurrentFilter&&r.status==='open');
+  else list = reports.filter(r=>r.sev===mobRepCurrentFilter && mobIsOpen(r));
   list = list.sort((a,b)=>b.date-a.date);
 
   if (!list.length) {
@@ -1425,6 +1436,7 @@ function renderMobileReports() {
     const badge = r.status==='progress'
       ? '<span class="rep-badge rb-progress">IN PROGRESS</span>'
       : `<span class="rep-badge rb-${r.sev}">${r.sev?.toUpperCase()}</span>`;
+    // Note: missing/undefined status treated as open — badge shows severity colour
     const mobPhotoStrip = (r.photos && r.photos.length > 0)
       ? `<div class="rep-photos">${r.photos.map(u => `<img class="rep-photo" src="${u}" onclick="event.stopPropagation();openPhoto('${u}')">`).join('')}</div>`
       : '';
@@ -1437,7 +1449,7 @@ function renderMobileReports() {
       ${mobPhotoStrip}
       ${r.status!=='resolved'?`<div class="rep-actions">
         <button class="rep-act" onclick="event.stopPropagation();assignReport('${r.id}')">${r.assignedTo ? '✏️ Reassign' : '👤 Assign'}</button>
-        ${r.status==='open'?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
+        ${(!r.status||r.status==='open')?`<button class="rep-act" onclick="event.stopPropagation();markInProgress('${r.id}')" style="background:var(--orange-light);color:var(--orange);border-color:var(--orange)">▶ Progress</button>`:''}
         <button class="rep-act resolve" onclick="event.stopPropagation();resolveReport('${r.id}')">✅ Resolve</button>
       </div>`:''}
     </div>`;
